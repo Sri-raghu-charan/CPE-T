@@ -1,0 +1,148 @@
+name: CPET Continuous Integration & Quality Gate
+
+on:
+  push:
+    branches: [main, master, release/*]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # 1. Static Analysis & Type Checking
+  # ============================================================================
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Typecheck Database, Backend & Frontend
+        run: npm run typecheck
+
+      - name: Lint Backend & Frontend
+        run: npm run lint
+
+  # ============================================================================
+  # 2. Automated Test Suite Execution
+  # ============================================================================
+  test:
+    name: Automated Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      MONGODB_URI: mongodb://127.0.0.1:27017/cpet_test
+      REDIS_URL: redis://127.0.0.1:6379
+      JWT_SECRET: test_ci_jwt_secret_key_minimum_32_characters_long
+      COOKIE_SECRET: test_ci_cookie_secret_key_minimum_32_characters_long
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Database Tests
+        run: npm run test --workspace=database
+
+      - name: Run Backend Integration & Unit Tests
+        run: npm run test --workspace=backend
+
+      - name: Run Frontend Tests
+        run: npm run test --workspace=frontend
+
+  # ============================================================================
+  # 3. Performance & Load Verification
+  # ============================================================================
+  load-test:
+    name: Sub-second Load Runner Verification
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Database & Backend
+        run: |
+          npm run build --workspace=database
+          npm run build --workspace=backend
+
+      - name: Execute High-Throughput Load Verification
+        run: npm run test:load --workspace=backend
+
+  # ============================================================================
+  # 4. Production Build & Container Image Lint
+  # ============================================================================
+  build:
+    name: Production Build Verification
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build All Workspaces
+        run: npm run build
+
+      - name: Validate Docker Compose Configuration
+        run: docker compose -f docker-compose.prod.yml config

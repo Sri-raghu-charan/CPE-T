@@ -1,0 +1,27 @@
+{
+  "name": "cpet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CPET — Consumer Problem Escalation & Tracking",
+  "workspaces": [
+    "database",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=database && npm run build --workspace=backend && npm run build --workspace=frontend",
+    "typecheck": "npm run typecheck --workspace=database && npm run typecheck --workspace=backend && npm run typecheck --workspace=frontend",
+    "lint": "npm run lint --workspace=backend && npm run lint --workspace=frontend",
+    "test": "npm run test --workspace=database && npm run test --workspace=backend && npm run test --workspace=frontend"
+  },
+  "keywords": [
+    "cpet",
+    "escalation",
+    "tracking",
+    "enterprise"
+  ],
+  "author": "",
+  "license": "UNLICENSED"
+}
