@@ -122,11 +122,17 @@ export interface MemorySession {
 export interface MemoryOtp {
   _id: string;
   target: string;
+  destinationHash?: string;
   otpHash: string;
   purpose: string;
+  attempts: number;
+  maxAttempts: number;
   isVerified: boolean;
+  lastSentAt: Date;
+  verifiedAt?: Date;
   expiresAt: Date;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface MemoryCase {

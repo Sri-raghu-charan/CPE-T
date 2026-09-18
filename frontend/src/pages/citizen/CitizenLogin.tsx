@@ -166,7 +166,7 @@ export const CitizenLogin: React.FC = () => {
                       placeholder="e.g. 123456"
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
-                      helperText="Enter 123456 in dev mode"
+                      helperText="Enter the 6-digit verification code sent to your email address."
                     />
                     <Button type="submit" variant="primary" className="w-full" isLoading={isLoading}>
                       Verify & Continue

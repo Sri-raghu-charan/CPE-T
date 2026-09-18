@@ -23,6 +23,7 @@ interface AuthContextType extends AuthState {
   }) => Promise<UserProfile>;
   requestOtp: (target: string, purpose: string) => Promise<{ message: string }>;
   verifyOtp: (target: string, otp: string, purpose: string) => Promise<boolean>;
+  resendOtp: (target: string, purpose: string) => Promise<{ message: string }>;
   updateProfile: (data: { name?: string; phone?: string }) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -158,11 +159,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(json.error?.message || 'OTP verification failed');
     }
 
-    if (user) {
-      if (token) await fetchCurrentUser(token);
+    if (json.data?.tokens) {
+      const { accessToken } = json.data.tokens;
+      const profile = json.data.user;
+      localStorage.setItem('cpet_access_token', accessToken);
+      setToken(accessToken);
+      setUser(profile);
+    } else if (user && token) {
+      await fetchCurrentUser(token);
     }
 
     return true;
+  };
+
+  const resendOtp = async (target: string, purpose: string) => {
+    const res = await fetch('/api/v1/auth/otp/resend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, purpose }),
+    });
+
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error?.message || 'Failed to resend OTP');
+    }
+
+    return json;
   };
 
   const updateProfile = async (data: { name?: string; phone?: string }) => {
@@ -209,6 +231,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         registerOrganization,
         requestOtp,
         verifyOtp,
+        resendOtp,
         updateProfile,
         logout,
       }}

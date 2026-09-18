@@ -49,19 +49,52 @@ export const loginSchema = {
   }),
 };
 
+export const otpPurposeEnum = z.enum([
+  'SIGNUP',
+  'LOGIN',
+  'PASSWORD_RESET',
+  'PHONE_VERIFICATION',
+  'EMAIL_VERIFICATION',
+]);
+
 export const otpRequestSchema = {
-  body: z.object({
-    target: z.string().min(3, 'Target email or phone required'),
-    purpose: z.enum(['SIGNUP', 'LOGIN', 'PASSWORD_RESET', 'PHONE_VERIFICATION']),
-  }),
+  body: z
+    .object({
+      target: z.string().optional(),
+      email: z.string().email('Valid email required').optional(),
+      purpose: otpPurposeEnum,
+    })
+    .refine((data) => Boolean(data.target || data.email), {
+      message: 'Email or target is required',
+      path: ['target'],
+    }),
 };
 
 export const otpVerifySchema = {
-  body: z.object({
-    target: z.string().min(3, 'Target required'),
-    otp: z.string().length(6, 'OTP must be 6 digits'),
-    purpose: z.enum(['SIGNUP', 'LOGIN', 'PASSWORD_RESET', 'PHONE_VERIFICATION']),
-  }),
+  body: z
+    .object({
+      target: z.string().optional(),
+      email: z.string().email('Valid email required').optional(),
+      otp: z.string().regex(/^\d{6}$/, 'OTP must be exactly 6 digits'),
+      purpose: otpPurposeEnum,
+    })
+    .refine((data) => Boolean(data.target || data.email), {
+      message: 'Email or target is required',
+      path: ['target'],
+    }),
+};
+
+export const otpResendSchema = {
+  body: z
+    .object({
+      target: z.string().optional(),
+      email: z.string().email('Valid email required').optional(),
+      purpose: otpPurposeEnum,
+    })
+    .refine((data) => Boolean(data.target || data.email), {
+      message: 'Email or target is required',
+      path: ['target'],
+    }),
 };
 
 export const refreshTokenSchema = {

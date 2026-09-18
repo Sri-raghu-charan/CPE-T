@@ -86,8 +86,30 @@ export class AuthController {
   };
 
   public requestOtp = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const destination = (req.body.email || req.body.target || '').toLowerCase().trim();
+    const purpose = req.body.purpose;
+    logSecurityEvent('OTP_REQUESTED', { destination, purpose }, req);
+
     try {
-      const result = await authService.requestOtp(req.body.target, req.body.purpose);
+      const result = await authService.requestOtp(destination, purpose);
+      logSecurityEvent('OTP_SENT', { destination, purpose }, req);
+      res.status(200).json({
+        success: true,
+        message: result.message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public resendOtp = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const destination = (req.body.email || req.body.target || '').toLowerCase().trim();
+    const purpose = req.body.purpose;
+    logSecurityEvent('OTP_RESEND', { destination, purpose }, req);
+
+    try {
+      const result = await authService.resendOtp(destination, purpose);
+      logSecurityEvent('OTP_SENT', { destination, purpose }, req);
       res.status(200).json({
         success: true,
         message: result.message,
@@ -98,13 +120,26 @@ export class AuthController {
   };
 
   public verifyOtp = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const destination = (req.body.email || req.body.target || '').toLowerCase().trim();
+    const purpose = req.body.purpose;
+    const userAgent = req.headers['user-agent'];
+    const ip = req.ip;
+
     try {
-      const result = await authService.verifyOtp(req.body.target, req.body.otp, req.body.purpose);
+      const result = await authService.verifyOtp(destination, req.body.otp, purpose, userAgent, ip);
+      logSecurityEvent('OTP_VERIFICATION_SUCCESS', { destination, purpose }, req);
+
+      if (result.tokens) {
+        this.setCookies(res, result.tokens.accessToken, result.tokens.refreshToken);
+      }
+
       res.status(200).json({
         success: true,
         message: result.message,
+        data: result.user ? { user: result.user, tokens: result.tokens } : undefined,
       });
-    } catch (error) {
+    } catch (error: any) {
+      logSecurityEvent('OTP_VERIFICATION_FAILED', { destination, purpose, reason: error?.message }, req);
       next(error);
     }
   };

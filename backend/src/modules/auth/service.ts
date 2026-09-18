@@ -19,6 +19,7 @@ import {
 } from '../../utils/errors.js';
 import { AuthJwtPayload } from '../../middleware/auth.js';
 import { memoryStore } from '../../infrastructure/store.js';
+import { getEmailProvider } from '../../providers/email/index.js';
 
 export interface AuthTokens {
   accessToken: string;
@@ -41,6 +42,14 @@ export interface SanitizedUser {
 export class AuthService {
   private hashSecret(secret: string): string {
     return crypto.createHash('sha256').update(secret).digest('hex');
+  }
+
+  public hashOtp(otp: string): string {
+    return crypto.createHash('sha256').update(`${otp}:${env.JWT_SECRET}`).digest('hex');
+  }
+
+  public hashDestination(target: string): string {
+    return crypto.createHash('sha256').update(target.toLowerCase().trim()).digest('hex');
   }
 
   public async sanitizeUser(user: any): Promise<SanitizedUser> {
@@ -123,7 +132,7 @@ export class AuthService {
     phone?: string;
     consent: { termsAccepted: boolean; termsVersion: string };
   }): Promise<{ user: SanitizedUser; tokens: AuthTokens }> {
-    const emailKey = data.email.toLowerCase();
+    const emailKey = data.email.toLowerCase().trim();
 
     if (memoryStore.isDbConnected()) {
       const existing = await UserModel.findOne({ email: emailKey });
@@ -135,6 +144,33 @@ export class AuthService {
       if (existing) {
         throw new ConflictError('An account with this email address already exists.');
       }
+    }
+
+    // Verify that a valid, verified OTP challenge exists for this email
+    let verifiedOtpRecord: any = null;
+    if (memoryStore.isDbConnected()) {
+      verifiedOtpRecord = await OtpModel.findOne({
+        target: emailKey,
+        purpose: { $in: ['SIGNUP', 'EMAIL_VERIFICATION'] },
+        isVerified: true,
+        expiresAt: { $gt: new Date() },
+      }).sort({ updatedAt: -1 });
+    } else {
+      const memOtp = memoryStore.otps.get(emailKey);
+      if (
+        memOtp &&
+        memOtp.isVerified &&
+        (memOtp.purpose === 'SIGNUP' || memOtp.purpose === 'EMAIL_VERIFICATION') &&
+        memOtp.expiresAt > new Date()
+      ) {
+        verifiedOtpRecord = memOtp;
+      }
+    }
+
+    if (!verifiedOtpRecord) {
+      throw new UnauthorizedError(
+        'Email verification required. Please verify your email via OTP before completing registration.'
+      );
     }
 
     const passwordHash = await bcrypt.hash(data.password, 10);
@@ -179,6 +215,16 @@ export class AuthService {
         updatedAt: new Date(),
       };
       memoryStore.users.set(newId, user);
+    }
+
+    // Invalidate/consume verified OTP challenge to prevent reuse
+    if (memoryStore.isDbConnected()) {
+      await OtpModel.deleteMany({
+        target: emailKey,
+        purpose: { $in: ['SIGNUP', 'EMAIL_VERIFICATION'] },
+      });
+    } else {
+      memoryStore.otps.delete(emailKey);
     }
 
     const accessToken = this.generateAccessToken(user);
@@ -372,37 +418,122 @@ export class AuthService {
    * Request OTP
    */
   public async requestOtp(target: string, purpose: OtpPurpose): Promise<{ message: string }> {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpHash = this.hashSecret(otp);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const targetKey = target.toLowerCase().trim();
+
+    // If SIGNUP, prevent duplicate registration
+    if (purpose === 'SIGNUP' || purpose === 'EMAIL_VERIFICATION') {
+      let existingUser: any;
+      if (memoryStore.isDbConnected()) {
+        existingUser = await UserModel.findOne({ email: targetKey });
+      } else {
+        existingUser = Array.from(memoryStore.users.values()).find((u) => u.email === targetKey);
+      }
+      if (existingUser) {
+        throw new ConflictError('An account with this email address already exists. Please sign in instead.');
+      }
+    }
+
+    // Cooldown check (60 seconds)
+    let existingOtp: any = null;
+    if (memoryStore.isDbConnected()) {
+      existingOtp = await OtpModel.findOne({
+        target: targetKey,
+        purpose,
+        isVerified: false,
+        expiresAt: { $gt: new Date() },
+      }).sort({ createdAt: -1 });
+    } else {
+      const mem = memoryStore.otps.get(targetKey);
+      if (mem && mem.purpose === purpose && !mem.isVerified && mem.expiresAt > new Date()) {
+        existingOtp = mem;
+      }
+    }
+
+    if (existingOtp && existingOtp.lastSentAt) {
+      const elapsedMs = Date.now() - new Date(existingOtp.lastSentAt).getTime();
+      const cooldownMs = 60 * 1000;
+      if (elapsedMs < cooldownMs) {
+        const remainingSeconds = Math.ceil((cooldownMs - elapsedMs) / 1000);
+        throw new ValidationError(`Please wait ${remainingSeconds} seconds before requesting a new verification code.`);
+      }
+    }
+
+    // Invalidate previous OTP challenges for this target + purpose
+    if (memoryStore.isDbConnected()) {
+      await OtpModel.updateMany(
+        { target: targetKey, purpose, isVerified: false },
+        { $set: { expiresAt: new Date(0) } }
+      );
+    } else {
+      memoryStore.otps.delete(targetKey);
+    }
+
+    // Generate cryptographically secure 6-digit OTP
+    const rawOtp = crypto.randomInt(100000, 1000000).toString();
+    const otpHash = this.hashOtp(rawOtp);
+    const destinationHash = this.hashDestination(targetKey);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    const now = new Date();
 
     if (memoryStore.isDbConnected()) {
       await OtpModel.create({
-        target: target.toLowerCase(),
+        target: targetKey,
+        destinationHash,
         otpHash,
         purpose,
         attempts: 0,
+        maxAttempts: 5,
         isVerified: false,
+        lastSentAt: now,
         expiresAt,
       });
     } else {
       const otpId = crypto.randomUUID();
-      memoryStore.otps.set(target.toLowerCase(), {
+      memoryStore.otps.set(targetKey, {
         _id: otpId,
-        target: target.toLowerCase(),
+        target: targetKey,
+        destinationHash,
         otpHash,
         purpose,
+        attempts: 0,
+        maxAttempts: 5,
         isVerified: false,
+        lastSentAt: now,
         expiresAt,
-        createdAt: new Date(),
+        createdAt: now,
+        updatedAt: now,
       });
     }
 
-    logger.info(`[Auth] OTP generated for target ${target} (${purpose}): ${otp}`);
+    // Dispatch real email via EmailProvider
+    try {
+      await getEmailProvider().sendOtpEmail({
+        to: targetKey,
+        otp: rawOtp,
+        purpose,
+      });
+    } catch (err: any) {
+      // Invalidate challenge immediately if dispatch fails
+      if (memoryStore.isDbConnected()) {
+        await OtpModel.deleteMany({ target: targetKey, purpose, otpHash });
+      } else {
+        memoryStore.otps.delete(targetKey);
+      }
+      throw err;
+    }
+
+    logger.info(`[Auth] OTP challenge created and dispatched to ${targetKey} (${purpose})`);
 
     return {
-      message: `OTP dispatched to ${target}. Valid for 10 minutes.`,
+      message: `Verification code dispatched to ${targetKey}. Valid for 5 minutes.`,
     };
+  }
+
+  /**
+   * Resend OTP (enforces cooldown and invalidates previous challenge)
+   */
+  public async resendOtp(target: string, purpose: OtpPurpose): Promise<{ message: string }> {
+    return this.requestOtp(target, purpose);
   }
 
   /**
@@ -411,46 +542,97 @@ export class AuthService {
   public async verifyOtp(
     target: string,
     otp: string,
-    purpose: OtpPurpose
-  ): Promise<{ verified: boolean; message: string }> {
-    // In dev / test, accept test code 123456
-    if (env.NODE_ENV !== 'production' && otp === '123456') {
-      return { verified: true, message: 'OTP verified successfully (dev bypass).' };
-    }
+    purpose: OtpPurpose,
+    userAgent?: string,
+    ipAddress?: string
+  ): Promise<{
+    verified: boolean;
+    message: string;
+    user?: SanitizedUser;
+    tokens?: AuthTokens;
+  }> {
+    const targetKey = target.toLowerCase().trim();
+    const candidateHash = this.hashOtp(otp);
 
-    const otpHash = this.hashSecret(otp);
-
+    let record: any = null;
     if (memoryStore.isDbConnected()) {
-      const record = await OtpModel.findOne({
-        target: target.toLowerCase(),
+      record = await OtpModel.findOne({
+        target: targetKey,
         purpose,
         isVerified: false,
         expiresAt: { $gt: new Date() },
       }).sort({ createdAt: -1 });
-
-      if (!record) {
-        throw new ValidationError('Invalid or expired OTP.');
-      }
-
-      if (record.otpHash !== otpHash) {
-        record.attempts += 1;
-        await record.save();
-        throw new ValidationError('Incorrect OTP. Please check and try again.');
-      }
-
-      record.isVerified = true;
-      await record.save();
     } else {
-      const record = memoryStore.otps.get(target.toLowerCase());
-      if (!record || record.isVerified || record.expiresAt < new Date()) {
-        throw new ValidationError('Invalid or expired OTP.');
+      const mem = memoryStore.otps.get(targetKey);
+      if (mem && mem.purpose === purpose && !mem.isVerified && mem.expiresAt > new Date()) {
+        record = mem;
+      }
+    }
+
+    if (!record) {
+      throw new ValidationError('Invalid or expired verification code. Please request a new code.');
+    }
+
+    // Check attempts limit (max 5 attempts)
+    if (record.attempts >= (record.maxAttempts || 5)) {
+      if (memoryStore.isDbConnected()) {
+        record.expiresAt = new Date(0);
+        await record.save();
+      } else {
+        memoryStore.otps.delete(targetKey);
+      }
+      throw new ValidationError('Maximum verification attempts exceeded. Please request a new code.');
+    }
+
+    if (record.otpHash !== candidateHash) {
+      record.attempts += 1;
+      if (memoryStore.isDbConnected()) {
+        await record.save();
+      }
+      if (record.attempts >= (record.maxAttempts || 5)) {
+        if (memoryStore.isDbConnected()) {
+          record.expiresAt = new Date(0);
+          await record.save();
+        } else {
+          memoryStore.otps.delete(targetKey);
+        }
+        throw new ValidationError('Maximum verification attempts reached (5/5). This code is now invalidated. Please request a new one.');
+      }
+      const remaining = (record.maxAttempts || 5) - record.attempts;
+      throw new ValidationError(`Incorrect verification code. ${remaining} attempt(s) remaining.`);
+    }
+
+    record.isVerified = true;
+    record.verifiedAt = new Date();
+    if (memoryStore.isDbConnected()) {
+      await record.save();
+    }
+
+    // For LOGIN purpose: create authenticated session
+    if (purpose === 'LOGIN') {
+      let user: any = null;
+      if (memoryStore.isDbConnected()) {
+        user = await UserModel.findOne({ email: targetKey });
+      } else {
+        user = Array.from(memoryStore.users.values()).find((u) => u.email === targetKey);
       }
 
-      if (record.otpHash !== otpHash) {
-        throw new ValidationError('Incorrect OTP. Please check and try again.');
+      if (!user) {
+        throw new ValidationError('No active account found for this email address.');
+      }
+      if (!user.isActive || user.isDeleted) {
+        throw new UnauthorizedError('Account is inactive or suspended.');
       }
 
-      record.isVerified = true;
+      const accessToken = this.generateAccessToken(user);
+      const refreshToken = await this.createSession(user._id, userAgent, ipAddress);
+
+      return {
+        verified: true,
+        message: 'OTP verified successfully.',
+        user: await this.sanitizeUser(user),
+        tokens: { accessToken, refreshToken },
+      };
     }
 
     return { verified: true, message: 'OTP verified successfully.' };

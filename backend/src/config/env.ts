@@ -20,6 +20,17 @@ const envSchema = z.object({
   REFRESH_TOKEN_SECRET: z.string().default('cpet-dev-refresh-token-secret-key-change-in-production-2026'),
   REFRESH_TOKEN_EXPIRES_IN: z.string().default('7d'),
   COOKIE_SECRET: z.string().default('cpet-dev-cookie-secret-key-2026'),
+  // SMTP Configuration for Email Delivery
+  SMTP_HOST: z.string().optional().default(''),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_SECURE: z
+    .union([z.boolean(), z.string()])
+    .transform((val) => val === true || val === 'true')
+    .default(false),
+  SMTP_USER: z.string().optional().default(''),
+  SMTP_PASSWORD: z.string().optional().default(''),
+  SMTP_FROM: z.string().default('noreply@cpet.org'),
+  SMTP_FROM_NAME: z.string().default('CPET'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
