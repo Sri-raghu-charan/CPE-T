@@ -332,4 +332,47 @@ describe('Production-Grade Email OTP Authentication Test Suite', () => {
     expect(verifyRes.body.data.user.email).toBe('login.citizen@cpet.org');
     expect(verifyRes.headers['set-cookie']).toBeDefined();
   });
+
+  // 19. Organization Signup with OTP Verification
+  it('19. Organization Signup Flow: valid OTP verification enables organization registration', async () => {
+    await authService.requestOtp('admin@metro-utility.org', 'SIGNUP');
+    await authService.verifyOtp('admin@metro-utility.org', capturedOtp, 'SIGNUP');
+
+    const signupResult = await authService.registerOrganization({
+      organizationName: 'Metro Utility Corp',
+      organizationType: 'UTILITY',
+      category: 'Power & Grid',
+      adminName: 'Lead Admin',
+      email: 'admin@metro-utility.org',
+      password: 'SecureOrgPassword123!',
+      contactPhone: '+1-555-0999',
+      address: '100 Power Plaza',
+      consent: { termsAccepted: true, termsVersion: '1.0' },
+    });
+
+    expect(signupResult.user.email).toBe('admin@metro-utility.org');
+    expect(signupResult.user.role).toBe('ORGANIZATION_ADMIN');
+    expect(signupResult.user.isEmailVerified).toBe(true);
+    expect(signupResult.organizationId).toBeDefined();
+    expect(signupResult.tokens.accessToken).toBeDefined();
+    expect(signupResult.tokens.refreshToken).toBeDefined();
+
+    // Verified OTP challenge must be consumed/deleted
+    expect(memoryStore.otps.has('admin@metro-utility.org')).toBe(false);
+  });
+
+  // 20. Organization Cannot Bypass OTP
+  it('20. Organization Cannot Bypass OTP: direct organization registration without OTP verification must fail', async () => {
+    await expect(
+      authService.registerOrganization({
+        organizationName: 'Unverified Corp',
+        organizationType: 'UTILITY',
+        adminName: 'Sneaky Admin',
+        email: 'unverified.org@cpet.org',
+        password: 'SecurePassword123!',
+        consent: { termsAccepted: true, termsVersion: '1.0' },
+      })
+    ).rejects.toThrow(/Email verification required/);
+  });
 });
+

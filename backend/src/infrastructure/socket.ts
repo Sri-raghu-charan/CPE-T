@@ -30,9 +30,21 @@ export class SocketManager {
   }
 
   public init(httpServer: HttpServer): SocketIOServer {
+    const allowedOrigins = (env.CORS_ORIGIN || 'http://localhost:5173').split(',').map((o) => o.trim());
+
     this.io = new SocketIOServer(httpServer, {
       cors: {
-        origin: env.CORS_ORIGIN || 'http://localhost:5173',
+        origin: (origin, callback) => {
+          if (!origin) return callback(null, true);
+          if (
+            allowedOrigins.includes(origin) ||
+            allowedOrigins.includes('*') ||
+            (env.NODE_ENV === 'development' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))
+          ) {
+            return callback(null, true);
+          }
+          return callback(new Error('Origin not allowed by CORS policy'));
+        },
         credentials: true,
       },
       path: '/socket.io',

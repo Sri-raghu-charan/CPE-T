@@ -1,19 +1,34 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.js';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, Input, Alert } from '../../design-system/index.js';
-import { Building2, ArrowLeft } from 'lucide-react';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  Button,
+  Input,
+  Alert,
+} from '../../design-system/index.js';
+import { Building2, ArrowLeft, KeyRound } from 'lucide-react';
 
 export const OrgLogin: React.FC = () => {
-  const { login } = useAuth();
+  const { login, requestOtp, verifyOtp } = useAuth();
   const navigate = useNavigate();
 
+  const [mode, setMode] = useState<'PASSWORD' | 'OTP'>('PASSWORD');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otpTarget, setOtpTarget] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
@@ -25,6 +40,35 @@ export const OrgLogin: React.FC = () => {
       navigate('/organization/dashboard', { replace: true });
     } catch (err: any) {
       setError(err.message || 'Login failed. Please verify credentials.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await requestOtp(otpTarget, 'LOGIN');
+      setOtpSent(true);
+      setInfoMessage(res.message);
+    } catch (err: any) {
+      setError(err.message || 'Failed to request OTP');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      await verifyOtp(otpTarget, otpCode, 'LOGIN');
+      navigate('/organization/dashboard', { replace: true });
+    } catch (err: any) {
+      setError(err.message || 'OTP verification failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -55,30 +99,122 @@ export const OrgLogin: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             {error && <Alert variant="error">{error}</Alert>}
+            {infoMessage && <Alert variant="info">{infoMessage}</Alert>}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input
-                label="Work Email Address"
-                type="email"
-                required
-                placeholder="e.g. agent@utility.org"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+            <div className="flex border-b border-slate-200 mb-2">
+              <button
+                type="button"
+                className={`pb-2 px-3 text-xs font-semibold ${
+                  mode === 'PASSWORD'
+                    ? 'border-b-2 border-blue-700 text-blue-700'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+                onClick={() => {
+                  setMode('PASSWORD');
+                  setError(null);
+                }}
+              >
+                Password Authentication
+              </button>
+              <button
+                type="button"
+                className={`pb-2 px-3 text-xs font-semibold flex items-center gap-1 ${
+                  mode === 'OTP'
+                    ? 'border-b-2 border-blue-700 text-blue-700'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+                onClick={() => {
+                  setMode('OTP');
+                  setError(null);
+                }}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>One-Time Passcode (OTP)</span>
+              </button>
+            </div>
 
-              <Input
-                label="Password"
-                type="password"
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+            {mode === 'PASSWORD' ? (
+              <form onSubmit={handlePasswordLogin} className="space-y-4">
+                <Input
+                  label="Work Email Address"
+                  type="email"
+                  required
+                  placeholder="e.g. agent@utility.org"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
 
-              <Button type="submit" variant="primary" className="w-full bg-blue-700 hover:bg-blue-800" isLoading={isLoading}>
-                Access Workspace
-              </Button>
-            </form>
+                <Input
+                  label="Password"
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-full bg-blue-700 hover:bg-blue-800"
+                  isLoading={isLoading}
+                >
+                  Access Workspace
+                </Button>
+              </form>
+            ) : (
+              <div>
+                {!otpSent ? (
+                  <form onSubmit={handleRequestOtp} className="space-y-4">
+                    <Input
+                      label="Corporate Work Email Address"
+                      type="email"
+                      required
+                      placeholder="e.g. admin@utility.org"
+                      value={otpTarget}
+                      onChange={(e) => setOtpTarget(e.target.value)}
+                      helperText="A 6-digit authentication code will be sent to your work email."
+                    />
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      className="w-full bg-blue-700 hover:bg-blue-800"
+                      isLoading={isLoading}
+                    >
+                      Send One-Time Passcode
+                    </Button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyOtp} className="space-y-4">
+                    <Input
+                      label="6-Digit Verification Code"
+                      type="text"
+                      required
+                      maxLength={6}
+                      placeholder="e.g. 123456"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      helperText="Enter the 6-digit verification code sent to your email address."
+                    />
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      className="w-full bg-blue-700 hover:bg-blue-800"
+                      isLoading={isLoading}
+                    >
+                      Verify & Access Workspace
+                    </Button>
+                    <button
+                      type="button"
+                      className="text-xs text-slate-500 hover:text-slate-900 underline block mx-auto pt-2"
+                      onClick={() => setOtpSent(false)}
+                    >
+                      Resend to another address
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
 
             <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
               Need to register your organization?{' '}

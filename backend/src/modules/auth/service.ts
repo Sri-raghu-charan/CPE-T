@@ -264,6 +264,33 @@ export class AuthService {
       }
     }
 
+    // Verify that a valid, verified OTP challenge exists for this corporate email
+    let verifiedOtpRecord: any = null;
+    if (memoryStore.isDbConnected()) {
+      verifiedOtpRecord = await OtpModel.findOne({
+        target: emailKey,
+        purpose: { $in: ['SIGNUP', 'EMAIL_VERIFICATION'] },
+        isVerified: true,
+        expiresAt: { $gt: new Date() },
+      }).sort({ updatedAt: -1 });
+    } else {
+      const memOtp = memoryStore.otps.get(emailKey);
+      if (
+        memOtp &&
+        memOtp.isVerified &&
+        (memOtp.purpose === 'SIGNUP' || memOtp.purpose === 'EMAIL_VERIFICATION') &&
+        memOtp.expiresAt > new Date()
+      ) {
+        verifiedOtpRecord = memOtp;
+      }
+    }
+
+    if (!verifiedOtpRecord) {
+      throw new UnauthorizedError(
+        'Email verification required. Please verify your corporate email via OTP before completing organization registration.'
+      );
+    }
+
     let baseSlug = data.organizationName
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -308,6 +335,12 @@ export class AuthService {
           termsVersion: data.consent.termsVersion,
           acceptedAt: new Date(),
         },
+      });
+
+      // Invalidate/consume verified OTP challenge to prevent reuse
+      await OtpModel.deleteMany({
+        target: emailKey,
+        purpose: { $in: ['SIGNUP', 'EMAIL_VERIFICATION'] },
       });
 
       const accessToken = this.generateAccessToken(adminUser);
@@ -357,6 +390,9 @@ export class AuthService {
         updatedAt: new Date(),
       };
       memoryStore.users.set(userId, adminUser);
+
+      // Invalidate/consume verified OTP challenge to prevent reuse
+      memoryStore.otps.delete(emailKey);
 
       const accessToken = this.generateAccessToken(adminUser);
       const refreshToken = await this.createSession(userId);
