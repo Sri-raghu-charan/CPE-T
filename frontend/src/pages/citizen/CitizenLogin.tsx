@@ -144,13 +144,13 @@ export const CitizenLogin: React.FC = () => {
                 {!otpSent ? (
                   <form onSubmit={handleRequestOtp} className="space-y-4">
                     <Input
-                      label="Email or Mobile Number"
-                      type="text"
+                      label="Email Address"
+                      type="email"
                       required
-                      placeholder="e.g. user@example.com or +1234567890"
+                      placeholder="e.g. user@example.com"
                       value={otpTarget}
                       onChange={(e) => setOtpTarget(e.target.value)}
-                      helperText="A 6-digit verification code will be dispatched."
+                      helperText="A 6-digit verification code will be dispatched to your email."
                     />
                     <Button type="submit" variant="primary" className="w-full" isLoading={isLoading}>
                       Send One-Time Passcode

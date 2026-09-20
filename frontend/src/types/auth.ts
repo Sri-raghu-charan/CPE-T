@@ -9,6 +9,7 @@ export type UserRole =
 
 export interface UserProfile {
   id: string;
+  _id?: string;
   name: string;
   email: string;
   phone?: string;

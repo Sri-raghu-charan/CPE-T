@@ -12,6 +12,9 @@ import { env } from './config/env.js';
 export function createApp(): Express {
   const app = express();
 
+  // Reverse proxy support (for accurate IP resolution behind Nginx/Docker)
+  app.set('trust proxy', 1);
+
   // Basic security and tracing
   app.use(setupHelmet());
   app.use(setupCors());

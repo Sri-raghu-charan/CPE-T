@@ -5,15 +5,12 @@ import { createApp } from '../app.js';
 import { env } from '../config/env.js';
 import { memoryStore } from '../infrastructure/store.js';
 import { connectorRegistry } from '../modules/routing/connectors/connector.registry.js';
-import { dispatchQueueService } from '../modules/routing/dispatch.queue.js';
-import { routingService } from '../modules/routing/routing.service.js';
 
 describe('Phase 5 — Organization Directory, Service Routing & Two-Way Communication', () => {
   const app = createApp();
 
   const lloydOrgId = '66d000000000000000000030';
   const apexOrgId = '66d000000000000000000010';
-  const otherOrgId = '66d000000000000000000020';
 
   const citizenUser = {
     _id: '66d000000000000000000099',
@@ -162,7 +159,7 @@ describe('Phase 5 — Organization Directory, Service Routing & Two-Way Communic
         type: 'EMAIL',
         value: 'unverified@lloyd.com',
         source: 'MANUAL_ENTRY',
-        verificationStatus: 'PENDING_VERIFICATION',
+        verificationStatus: 'PENDING',
         activeStatus: true,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -177,7 +174,7 @@ describe('Phase 5 — Organization Directory, Service Routing & Two-Way Communic
         type: 'EMAIL',
         value: 'unverified@lloyd.com',
         source: 'MANUAL_ENTRY',
-        verificationStatus: 'PENDING_VERIFICATION',
+        verificationStatus: 'PENDING',
         activeStatus: true,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -271,19 +268,21 @@ describe('Phase 5 — Organization Directory, Service Routing & Two-Way Communic
         type: mockCase.type,
         title: mockCase.title,
         description: mockCase.description,
+        priority: 'MEDIUM',
         destination: mockDest,
         requester: { id: 'req-1', name: mockCase.requesterName, email: mockCase.requesterEmail },
         timestamp: new Date(),
       };
 
-      const result = await emailConnector.dispatch(payload);
+      expect(emailConnector).not.toBeNull();
+      const result = await emailConnector!.dispatch(payload);
       expect(result.success).toBe(true);
       expect(result.channel).toBe('EMAIL');
       expect(result.externalReference).toBeDefined();
       expect(result.externalReference).toContain('cpet-');
 
       // Test idempotency: re-dispatching with same ID returns cached idempotent confirmation
-      const repeatResult = await emailConnector.dispatch(payload);
+      const repeatResult = await emailConnector!.dispatch(payload);
       expect(repeatResult.success).toBe(true);
       expect(repeatResult.channel).toBe('EMAIL');
     });

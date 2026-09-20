@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.js';
 import {
@@ -89,7 +89,7 @@ export const CitizenCaseDetails: React.FC = () => {
     }
   };
 
-  const fetchCase = async () => {
+  const fetchCase = useCallback(async () => {
     try {
       const res = await fetch(`/api/v1/cases/${id}`, {
         headers: {
@@ -109,7 +109,7 @@ export const CitizenCaseDetails: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, token]);
 
   useEffect(() => {
     fetchCase();
@@ -199,7 +199,7 @@ export const CitizenCaseDetails: React.FC = () => {
         leaveCaseRoom(id);
       };
     }
-  }, [id, token]);
+  }, [id, token, fetchCase]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.js';
 import {
@@ -35,7 +35,7 @@ import { getSocket, joinCaseRoom, leaveCaseRoom } from '../../services/socket.js
 export const OrgRequestDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { token, user } = useAuth();
-  const orgId = user?.organizationId || '66d000000000000000000010';
+  const orgId = user?.organizationId;
 
   const [caseData, setCaseData] = useState<CaseItem | null>(null);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -53,7 +53,8 @@ export const OrgRequestDetails: React.FC = () => {
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [assigningAgent, setAssigningAgent] = useState(false);
 
-  const fetchCaseDetails = async () => {
+  const fetchCaseDetails = useCallback(async () => {
+    if (!id) return;
     try {
       const res = await fetch(`/api/v1/cases/${id}`, {
         headers: {
@@ -80,9 +81,10 @@ export const OrgRequestDetails: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, token]);
 
-  const fetchTeamMembers = async () => {
+  const fetchTeamMembers = useCallback(async () => {
+    if (!orgId) return;
     try {
       const res = await fetch(`/api/v1/organizations/${orgId}/members`, {
         headers: {
@@ -96,7 +98,7 @@ export const OrgRequestDetails: React.FC = () => {
     } catch (err) {
       console.error('Failed to load team members', err);
     }
-  };
+  }, [orgId, token]);
 
   useEffect(() => {
     fetchCaseDetails();
@@ -150,7 +152,7 @@ export const OrgRequestDetails: React.FC = () => {
         leaveCaseRoom(id);
       };
     }
-  }, [id, token, orgId]);
+  }, [id, token, fetchCaseDetails, fetchTeamMembers]);
 
   const handleSendResponse = async (e: React.FormEvent) => {
     e.preventDefault();

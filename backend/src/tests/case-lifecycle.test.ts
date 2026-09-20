@@ -89,7 +89,7 @@ describe('Phase 3 — Universal Request, Case, Tracking & Audit Engine', () => {
       settings: { autoAssign: false, defaultSlaHours: 24 },
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
+    } as any);
   });
 
   it('1. Universal Case Creation: raises SERVICE_REQUEST, COMPLAINT, and BLOOD_REQUEST', async () => {

@@ -171,8 +171,18 @@ export class AuthController {
       const refreshToken = req.body?.refreshToken || req.cookies?.cpet_refresh_token;
       await authService.logout(refreshToken);
 
-      res.clearCookie('cpet_token');
-      res.clearCookie('cpet_refresh_token', { path: '/api/v1/auth/refresh' });
+      const isProd = env.NODE_ENV === 'production';
+      res.clearCookie('cpet_token', {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+      });
+      res.clearCookie('cpet_refresh_token', {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+        path: '/api/v1/auth/refresh',
+      });
 
       res.status(200).json({
         success: true,

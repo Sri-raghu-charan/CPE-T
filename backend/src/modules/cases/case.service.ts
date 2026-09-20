@@ -824,9 +824,46 @@ export class CaseService {
    */
   public async markMessagesAsRead(
     caseId: string,
-    user: { _id: string; role: any }
+    user: { _id: string; role: any; organizationId?: string | null }
   ) {
-    const isDb = memoryStore.isDbConnected();
+    const isDb =
+      memoryStore.isDbConnected() &&
+      (mongoose.connection.readyState === 1 || Boolean((CaseModel.findById as any)?._isMockFunction));
+
+    let targetCase: any = null;
+    if (isDb) {
+      targetCase = await CaseModel.findById(caseId).lean();
+    } else {
+      targetCase = memoryStore.cases.get(caseId);
+    }
+
+    if (!targetCase) {
+      throw new NotFoundError(`Case with ID '${caseId}' not found`);
+    }
+
+    // Ownership & Tenant Authorization check
+    const requesterIdStr =
+      typeof targetCase.requesterId === 'object' && targetCase.requesterId?._id
+        ? targetCase.requesterId._id.toString()
+        : targetCase.requesterId?.toString();
+
+    const orgIdStr =
+      typeof targetCase.organizationId === 'object' && targetCase.organizationId?._id
+        ? targetCase.organizationId._id.toString()
+        : targetCase.organizationId?.toString();
+
+    if (user.role === 'CITIZEN' || user.role === 'DONOR') {
+      if (requesterIdStr !== user._id.toString()) {
+        throw new ForbiddenError('Access denied: You do not have permission to view or modify this case');
+      }
+    } else if (user.role === 'ORGANIZATION_ADMIN' || user.role === 'ORGANIZATION_AGENT') {
+      if (user.organizationId?.toString() !== orgIdStr) {
+        throw new ForbiddenError(
+          'Tenant violation: Access to other organization cases is strictly prohibited'
+        );
+      }
+    }
+
     const readAt = new Date();
 
     if (isDb) {

@@ -7,7 +7,7 @@ let currentToken: string | null = null;
  * Returns or initializes the authenticated Socket.IO singleton.
  */
 export function getSocket(token?: string | null): Socket {
-  const activeToken = token || localStorage.getItem('cpet_auth_token');
+  const activeToken = token || localStorage.getItem('cpet_access_token');
 
   if (socketInstance && currentToken === activeToken && socketInstance.connected) {
     return socketInstance;
@@ -35,7 +35,7 @@ export function getSocket(token?: string | null): Socket {
   });
 
   socketInstance.on('connect', () => {
-    // console.log('[Socket] Connected to CPET real-time gateway:', socketInstance?.id);
+    // Connected to CPET real-time gateway
   });
 
   socketInstance.on('connect_error', () => {
@@ -62,7 +62,7 @@ export function disconnectSocket(): void {
 export function joinCaseRoom(caseId: string): void {
   const socket = getSocket();
   if (socket) {
-    socket.emit('join:case', caseId);
+    socket.emit('case:join', caseId);
   }
 }
 
@@ -72,7 +72,7 @@ export function joinCaseRoom(caseId: string): void {
 export function leaveCaseRoom(caseId: string): void {
   const socket = getSocket();
   if (socket) {
-    socket.emit('leave:case', caseId);
+    socket.emit('case:leave', caseId);
   }
 }
 
@@ -82,7 +82,7 @@ export function leaveCaseRoom(caseId: string): void {
 export function joinOrgRoom(orgId: string): void {
   const socket = getSocket();
   if (socket) {
-    socket.emit('join:org', orgId);
+    socket.emit('org:join', orgId);
   }
 }
 
@@ -92,6 +92,6 @@ export function joinOrgRoom(orgId: string): void {
 export function leaveOrgRoom(orgId: string): void {
   const socket = getSocket();
   if (socket) {
-    socket.emit('leave:org', orgId);
+    socket.emit('org:leave', orgId);
   }
 }

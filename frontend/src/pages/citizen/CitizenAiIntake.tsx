@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.js';
 import {
@@ -93,79 +93,104 @@ export const CitizenAiIntake: React.FC = () => {
     }
   }, [extractedDraft]);
 
+  // Clean up recording timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+    };
+  }, []);
+
+  /**
+   * Main conversational intake send handler
+   */
+  const handleSend = useCallback(
+    async (textToSend: string) => {
+      if (!textToSend.trim() || analyzing) return;
+
+      setErrorMessage(null);
+      setAnalyzing(true);
+
+      const userMessage = textToSend.trim();
+      setInputText('');
+
+      // Optimistically update conversation history
+      const updatedHistory = [...conversation, { role: 'user' as const, text: userMessage }];
+      setConversation(updatedHistory);
+
+      // Build context payload for multi-turn accumulation
+      const contextPayload: AiIntakeContext = {
+        intent: extractedDraft?.intent,
+        organizationId: extractedDraft?.organization.matchedId,
+        organizationName: extractedDraft?.organization.matchedName,
+        productService: editProduct || extractedDraft?.productService,
+        category: editCategory || extractedDraft?.category,
+        priority: editPriority || extractedDraft?.priority,
+        location: {
+          city: editCity || extractedDraft?.location.city,
+          address: editAddress || extractedDraft?.location.address,
+          pincode: editPincode || extractedDraft?.location.pincode,
+        },
+        structuredData: {
+          ...(extractedDraft?.structuredData || {}),
+          ...editStructuredData,
+        },
+        conversationHistory: updatedHistory,
+      };
+
+      try {
+        const res = await fetch('/api/v1/ai/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            message: userMessage,
+            languageHint: selectedLanguage !== 'auto' ? selectedLanguage : undefined,
+            context: contextPayload,
+          }),
+        });
+
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error?.message || 'Failed to analyze request with AI.');
+        }
+
+        const extracted: AiExtractedCase = json.data;
+        setExtractedDraft(extracted);
+        setConversation(extracted.conversationHistory);
+        setPendingClarification(extracted.nextClarification);
+      } catch (err: any) {
+        console.error('AI Intake analysis error:', err);
+        setErrorMessage(err.message || 'Could not process request. Please try again or use the manual form.');
+      } finally {
+        setAnalyzing(false);
+      }
+    },
+    [
+      analyzing,
+      conversation,
+      editAddress,
+      editCategory,
+      editCity,
+      editPincode,
+      editPriority,
+      editProduct,
+      editStructuredData,
+      extractedDraft,
+      selectedLanguage,
+      token,
+    ]
+  );
+
   // Handle initial query if provided in URL (e.g. from Home search bar)
   useEffect(() => {
     if (initialQuery.trim() && conversation.length === 0) {
       handleSend(initialQuery.trim());
     }
-  }, [initialQuery]);
-
-  /**
-   * Main conversational intake send handler
-   */
-  const handleSend = async (textToSend: string) => {
-    if (!textToSend.trim() || analyzing) return;
-
-    setErrorMessage(null);
-    setAnalyzing(true);
-
-    const userMessage = textToSend.trim();
-    setInputText('');
-
-    // Optimistically update conversation history
-    const updatedHistory = [...conversation, { role: 'user' as const, text: userMessage }];
-    setConversation(updatedHistory);
-
-    // Build context payload for multi-turn accumulation
-    const contextPayload: AiIntakeContext = {
-      intent: extractedDraft?.intent,
-      organizationId: extractedDraft?.organization.matchedId,
-      organizationName: extractedDraft?.organization.matchedName,
-      productService: editProduct || extractedDraft?.productService,
-      category: editCategory || extractedDraft?.category,
-      priority: editPriority || extractedDraft?.priority,
-      location: {
-        city: editCity || extractedDraft?.location.city,
-        address: editAddress || extractedDraft?.location.address,
-        pincode: editPincode || extractedDraft?.location.pincode,
-      },
-      structuredData: {
-        ...(extractedDraft?.structuredData || {}),
-        ...editStructuredData,
-      },
-      conversationHistory: updatedHistory,
-    };
-
-    try {
-      const res = await fetch('/api/v1/ai/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          message: userMessage,
-          languageHint: selectedLanguage !== 'auto' ? selectedLanguage : undefined,
-          context: contextPayload,
-        }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error?.message || 'Failed to analyze request with AI.');
-      }
-
-      const extracted: AiExtractedCase = json.data;
-      setExtractedDraft(extracted);
-      setConversation(extracted.conversationHistory);
-      setPendingClarification(extracted.nextClarification);
-    } catch (err: any) {
-      console.error('AI Intake analysis error:', err);
-      setErrorMessage(err.message || 'Could not process request. Please try again or use the manual form.');
-    } finally {
-      setAnalyzing(false);
-    }
-  };
+  }, [initialQuery, conversation.length, handleSend]);
 
   /**
    * Handle quick clarification chip click

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CaseType, CasePriority } from '@cpet/database';
+import { CaseType } from '@cpet/database';
 
 export interface DomainCategory {
   id: string;

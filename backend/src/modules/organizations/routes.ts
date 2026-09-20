@@ -322,6 +322,84 @@ organizationsRouter.post(
 );
 
 /**
+ * Remove / Deactivate Team Member
+ */
+organizationsRouter.delete(
+  '/:orgId/members/:memberId',
+  authenticate,
+  authorize('ORGANIZATION_ADMIN', 'SUPER_ADMIN'),
+  tenantScope,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (memoryStore.isDbConnected()) {
+        const member = await UserModel.findOneAndUpdate(
+          { _id: req.params.memberId, organizationId: req.params.orgId },
+          { $set: { isActive: false, isDeleted: true } },
+          { new: true }
+        );
+        if (!member) {
+          throw new NotFoundError('Team member not found in this organization.');
+        }
+      } else {
+        const member = memoryStore.users.get(req.params.memberId);
+        if (!member || member.organizationId !== req.params.orgId) {
+          throw new NotFoundError('Team member not found in this organization.');
+        }
+        member.isActive = false;
+        memoryStore.users.set(req.params.memberId, member);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Team member removed successfully.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * Get Organization Settings & Profile
+ */
+organizationsRouter.get(
+  '/:orgId/settings',
+  authenticate,
+  authorize('ORGANIZATION_ADMIN', 'ORGANIZATION_AGENT', 'SUPER_ADMIN', 'CPET_ADMIN'),
+  tenantScope,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      let org: any = null;
+      if (memoryStore.isDbConnected()) {
+        org = await OrganizationModel.findById(req.params.orgId)
+          .select('name slug type category contactEmail contactPhone address settings')
+          .lean();
+      } else {
+        org = memoryStore.organizations.get(req.params.orgId);
+      }
+
+      if (!org) {
+        throw new NotFoundError('Organization not found.');
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          id: org._id,
+          name: org.name,
+          settings: org.settings,
+          category: org.category,
+          contactPhone: org.contactPhone || '',
+          address: org.address || '',
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * Update Organization Settings
  */
 organizationsRouter.patch(

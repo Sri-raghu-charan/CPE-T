@@ -1,7 +1,6 @@
 import { Types } from 'mongoose';
 import {
   DonorModel,
-  IDonor,
   BloodGroup,
   DonorAvailabilityStatus,
   ContactPreference,
@@ -9,7 +8,7 @@ import {
 } from '@cpet/database';
 import { memoryStore, MemoryDonor } from '../../infrastructure/store.js';
 import { socketManager } from '../../infrastructure/socket.js';
-import { NotFoundError, ValidationError, ForbiddenError } from '../../utils/errors.js';
+import { NotFoundError, ValidationError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 
 export interface RegisterDonorInput {
@@ -240,7 +239,7 @@ export class BloodService {
       }
 
       // Check radius constraint if requested
-      if (query.radiusKm && distanceKm !== undefined && distanceKm > query.radiusKm) {
+      if (query.radiusKm && distanceKm !== undefined && distanceKm > radiusLimit) {
         continue;
       }
 
@@ -380,7 +379,7 @@ export class BloodService {
    */
   public async contactDonorRelay(
     input: ContactDonorInput,
-    requesterUser: { userId: string; name?: string; phone?: string; email?: string }
+    _requesterUser: { userId: string; name?: string; phone?: string; email?: string }
   ): Promise<{ success: boolean; message: string; relayId: string }> {
     const isDb = memoryStore.isDbConnected();
     let donor: any = null;

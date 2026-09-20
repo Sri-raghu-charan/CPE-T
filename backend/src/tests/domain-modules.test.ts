@@ -81,6 +81,7 @@ describe('Phase 6 — Domain Modules: Service Requests, Complaints & Blood', () 
     it('dynamically identifies Samsung brand from natural language and routes to Samsung organization', async () => {
       const intake = await aiService.analyzeIntake({
         message: 'I have a Samsung split AC and it has a cooling defect in Hitec City, Hyderabad',
+        languageHint: 'auto',
       });
 
       expect(intake.intent).toBe('SERVICE_REQUEST');
@@ -100,13 +101,13 @@ describe('Phase 6 — Domain Modules: Service Requests, Complaints & Blood', () 
           organizationId: intake.organization.matchedId,
           rawOrgName: 'Samsung',
           structuredData: intake.structuredData,
-          location: { city: 'Hyderabad', locality: 'Hitec City' },
-        },
-        user
+          location: { city: 'Hyderabad', address: 'Hitec City' },
+        } as any,
+        user as any
       );
 
       expect(createdCase.organizationId.toString()).toBe(samsungOrgId);
-      expect(createdCase.organizationName).toContain('Samsung');
+      expect((createdCase as any).organizationName).toContain('Samsung');
       expect(createdCase.routing?.destinationType).toBe('INTERNAL_QUEUE');
       expect(createdCase.routing?.destinationValue).toBe('samsung-triage-queue');
       expect(createdCase.sla.slaHours).toBe(48);
@@ -115,11 +116,13 @@ describe('Phase 6 — Domain Modules: Service Requests, Complaints & Blood', () 
     it('works across different brands (Lloyd, Samsung, Apex) without hardcoded brand logic', async () => {
       const lloydIntake = await aiService.analyzeIntake({
         message: 'Need AC servicing for my Lloyd AC in Begumpet',
+        languageHint: 'auto',
       });
       expect(lloydIntake.organization.matchedName).toContain('Lloyd');
 
       const apexIntake = await aiService.analyzeIntake({
         message: 'High voltage transformer line fault near civic center',
+        languageHint: 'auto',
       });
       expect(apexIntake.organization.matchedName).toContain('Apex');
     });
@@ -132,6 +135,7 @@ describe('Phase 6 — Domain Modules: Service Requests, Complaints & Blood', () 
     it('supports complaints against institutions (e.g. hospital care deficiency)', async () => {
       const intake = await aiService.analyzeIntake({
         message: 'Formal complaint against City Care Hospital for billing overcharge beyond package',
+        languageHint: 'auto',
       });
 
       expect(intake.intent).toBe('COMPLAINT');
@@ -142,6 +146,7 @@ describe('Phase 6 — Domain Modules: Service Requests, Complaints & Blood', () 
     it('supports complaints against facilities (e.g. public transit bus breakdown)', async () => {
       const intake = await aiService.analyzeIntake({
         message: 'Complaint regarding terminal 3 civic bus route delay and service deficiency',
+        languageHint: 'auto',
       });
 
       expect(intake.intent).toBe('COMPLAINT');
@@ -165,8 +170,8 @@ describe('Phase 6 — Domain Modules: Service Requests, Complaints & Blood', () 
             incidentDate: '2026-09-10',
           },
           location: { city: 'Metro City' },
-        },
-        user
+        } as any,
+        user as any
       );
 
       expect(createdCase.type).toBe('COMPLAINT');
@@ -369,16 +374,16 @@ describe('Phase 6 — Domain Modules: Service Requests, Complaints & Blood', () 
             contactPhone: '+91 9876543210',
             requesterRelationship: 'FAMILY',
           },
-          location: { city: 'Hyderabad', locality: 'Madhapur' },
-        },
-        user
+          location: { city: 'Hyderabad', address: 'Madhapur' },
+        } as any,
+        user as any
       );
 
       expect(bloodCase.type).toBe('BLOOD_REQUEST');
       expect(bloodCase.priority).toBe('URGENT');
       expect(bloodCase.sla.slaHours).toBe(6); // Emergency blood SLA = 6h
       expect(bloodCase.organizationId.toString()).toBe(redCrossOrgId);
-      expect(bloodCase.organizationName).toContain('Red Cross');
+      expect((bloodCase as any).organizationName).toContain('Red Cross');
       expect(bloodCase.routing?.destinationValue).toBe('redcross-blood-desk');
 
       // Test message loop on blood case
@@ -386,13 +391,13 @@ describe('Phase 6 — Domain Modules: Service Requests, Complaints & Blood', () 
         bloodCase._id.toString(),
         {
           message: 'Blood bank verified matching donor availability in Madhapur.',
-        },
+        } as any,
         {
           _id: '66d000000000000000000052',
           name: 'Red Cross Coordinator',
           role: 'ORGANIZATION_AGENT',
           organizationId: redCrossOrgId,
-        }
+        } as any
       );
       expect(res.event.eventType).toBe('MESSAGE');
       expect(res.event.message).toContain('Madhapur');

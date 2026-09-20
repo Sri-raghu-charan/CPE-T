@@ -99,33 +99,50 @@ export function nosqlSanitizer(req: Request, _res: Response, next: NextFunction)
 }
 
 /**
- * Sanitizes potential XSS strings by neutralizing dangerous HTML tags.
+ * Sanitizes potential XSS strings by neutralizing dangerous HTML tags, attributes, and script execution contexts.
  */
 export function sanitizeXssString(str: string): string {
   if (typeof str !== 'string') return str;
-  return str
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-    .replace(/javascript:/gi, '')
-    .replace(/onerror\s*=/gi, '')
-    .replace(/onload\s*=/gi, '');
+
+  let sanitized = str;
+  // 1. Remove script, iframe, object, embed, applet tags and their contents
+  sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  sanitized = sanitized.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
+  sanitized = sanitized.replace(/<(object|embed|applet|style)\b[^<]*(?:(?!<\/\1>)<[^<]*)*<\/\1>/gi, '');
+
+  // 2. Remove all DOM event handlers (onerror, onload, onfocus, ontoggle, onclick, onmouseover, etc.)
+  sanitized = sanitized.replace(/\son[a-zA-Z]+\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]+)/gi, '');
+
+  // 3. Neutralize dangerous executable pseudo-protocols
+  sanitized = sanitized.replace(/(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/gi, '');
+
+  // 4. Remove standalone dangerous tag openings/closings
+  sanitized = sanitized.replace(/<(?:script|iframe|object|embed|applet|svg|details|body|head|link|meta)\b[^>]*>/gi, '');
+  sanitized = sanitized.replace(/<\/(?:script|iframe|object|embed|applet|svg|details|body|head|link|meta)>/gi, '');
+
+  return sanitized;
 }
 
 /**
- * Recursively sanitizes string inputs to prevent XSS payloads.
+ * Recursively sanitizes string inputs to prevent XSS payloads while preserving passwords and credentials.
  */
 export function xssSanitizer(req: Request, _res: Response, next: NextFunction): void {
-  const sanitizeDeep = (obj: any): any => {
+  const sensitiveKeys = new Set(['password', 'newPassword', 'oldPassword', 'token', 'refreshToken']);
+
+  const sanitizeDeep = (obj: any, parentKey?: string): any => {
     if (typeof obj === 'string') {
+      if (parentKey && sensitiveKeys.has(parentKey)) {
+        return obj;
+      }
       return sanitizeXssString(obj);
     }
     if (Array.isArray(obj)) {
-      return obj.map(sanitizeDeep);
+      return obj.map((item) => sanitizeDeep(item, parentKey));
     }
     if (obj && typeof obj === 'object') {
       const sanitized: Record<string, any> = {};
       for (const [key, val] of Object.entries(obj)) {
-        sanitized[key] = sanitizeDeep(val);
+        sanitized[key] = sanitizeDeep(val, key);
       }
       return sanitized;
     }

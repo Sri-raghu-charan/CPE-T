@@ -9,6 +9,13 @@ export class SMTPEmailProvider implements EmailProvider {
 
   private getTransporter(): Transporter {
     if (!this.transporter) {
+      if (env.NODE_ENV === 'test') {
+        this.transporter = nodemailer.createTransport({
+          jsonTransport: true,
+        });
+        return this.transporter;
+      }
+
       if (!env.SMTP_HOST) {
         logger.error('[SMTPEmailProvider] SMTP_HOST is not configured in environment.');
         throw new ServiceUnavailableError(

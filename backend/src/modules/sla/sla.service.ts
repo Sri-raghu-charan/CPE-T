@@ -4,13 +4,11 @@ import {
   CasePriority,
   SlaPolicyModel,
   ISlaPolicy,
-  CaseModel,
   ICaseSla,
   SlaStatus,
 } from '@cpet/database';
 import { memoryStore } from '../../infrastructure/store.js';
 import { domainService } from '../domains/domain.service.js';
-import { logger } from '../../utils/logger.js';
 
 export interface SlaCalculationResult {
   benchmarkHours: number;

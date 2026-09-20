@@ -73,5 +73,8 @@ const otpSchema = new Schema<IOtp>(
   { timestamps: true }
 );
 
+otpSchema.index({ target: 1, purpose: 1, isVerified: 1, createdAt: -1 });
+otpSchema.index({ target: 1, createdAt: -1 });
+
 export const OtpModel: Model<IOtp> =
   mongoose.models.Otp || mongoose.model<IOtp>('Otp', otpSchema);

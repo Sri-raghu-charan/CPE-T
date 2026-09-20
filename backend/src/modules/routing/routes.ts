@@ -4,7 +4,7 @@ import { authenticate, authorize } from '../../middleware/auth.js';
 import { routingService } from './routing.service.js';
 import { DestinationModel, OrganizationModel } from '@cpet/database';
 import { memoryStore } from '../../infrastructure/store.js';
-import { ForbiddenError, NotFoundError, ValidationError } from '../../utils/errors.js';
+import { ForbiddenError, ValidationError } from '../../utils/errors.js';
 
 export const routingRouter = Router();
 

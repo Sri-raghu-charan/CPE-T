@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.js';
-import { ShieldCheck, LogOut, UserCheck, Home, Clock, User } from 'lucide-react';
+import { ShieldCheck, LogOut, UserCheck, Home, Clock, User, Sparkles, HeartPulse } from 'lucide-react';
 import { Badge, Button } from '../../design-system/index.js';
 import { cn } from '../../design-system/utils.js';
 
@@ -16,6 +16,8 @@ export const CitizenShell: React.FC = () => {
 
   const navItems = [
     { name: 'Services & Home', href: '/citizen/home', icon: Home },
+    { name: 'AI Intake', href: '/citizen/intake', icon: Sparkles },
+    { name: 'Emergency Blood', href: '/citizen/blood', icon: HeartPulse },
     { name: 'Track Requests', href: '/citizen/requests', icon: Clock },
     { name: 'Profile & Privacy', href: '/citizen/profile', icon: User },
   ];

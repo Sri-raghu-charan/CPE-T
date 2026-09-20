@@ -13,6 +13,13 @@ describe('Backend Health & Core Endpoints', () => {
     expect(res.headers['x-request-id']).toBeDefined();
   });
 
+  it('GET /health should return 200 with status ok (canonical root alias)', async () => {
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body).toHaveProperty('uptimeSeconds');
+  });
+
   it('GET /health/ready should return dependencies status', async () => {
     const res = await request(app).get('/health/ready');
     // In test environment, returns 200 with services payload

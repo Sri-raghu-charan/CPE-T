@@ -3,22 +3,31 @@ import { redisManager } from '../../infrastructure/redis.js';
 import { escalationService } from './escalation.service.js';
 import { logger } from '../../utils/logger.js';
 
+import { env } from '../../config/env.js';
+
 export class EscalationQueueService {
   private queue: Queue | null = null;
   private worker: Worker | null = null;
   private intervalTimer: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.initQueue();
+    // Queues and workers are initialized via init() in the startup lifecycle
   }
 
-  private initQueue() {
+  public async init(): Promise<void> {
     const redisClient = redisManager.getClient();
 
-    if (redisClient && redisClient.status === 'ready') {
+    if (redisClient && (redisClient.status === 'ready' || redisClient.status === 'connect')) {
       try {
+        const connectionOptions = {
+          host: env.REDIS_HOST,
+          port: env.REDIS_PORT,
+          password: env.REDIS_PASSWORD || undefined,
+          maxRetriesPerRequest: null,
+        };
+
         this.queue = new Queue('cpet-escalation-queue', {
-          connection: redisClient,
+          connection: connectionOptions,
           defaultJobOptions: {
             attempts: 2,
             removeOnComplete: true,
@@ -26,7 +35,7 @@ export class EscalationQueueService {
         });
 
         // Add repeatable job every 60 seconds
-        this.queue.add(
+        await this.queue.add(
           'periodic-escalation-sweep',
           {},
           {
@@ -35,6 +44,7 @@ export class EscalationQueueService {
             },
           }
         );
+        logger.info('[BullMQ] Queue initialized: cpet-escalation-queue');
 
         this.worker = new Worker(
           'cpet-escalation-queue',
@@ -44,10 +54,10 @@ export class EscalationQueueService {
               logger.info(`[BullMQ Escalation Worker] Swept and escalated ${res.escalatedCount} breached cases.`);
             }
           },
-          { connection: redisClient }
+          { connection: connectionOptions }
         );
 
-        logger.info('[BullMQ] Escalation periodic queue and worker initialized.');
+        logger.info('[BullMQ] Worker initialized: cpet-escalation-queue');
       } catch (err: any) {
         logger.warn(`[BullMQ] Escalation queue setup failed: ${err.message}. Using resilient memory timer.`);
         this.startMemoryTimer();
@@ -83,14 +93,18 @@ export class EscalationQueueService {
     return escalationService.sweepAndEscalateBreachedCases();
   }
 
-  public stop(): void {
+  public async stop(): Promise<void> {
     if (this.intervalTimer) {
       clearInterval(this.intervalTimer);
       this.intervalTimer = null;
     }
     if (this.worker) {
-      this.worker.close();
+      await this.worker.close();
       this.worker = null;
+    }
+    if (this.queue) {
+      await this.queue.close();
+      this.queue = null;
     }
   }
 }

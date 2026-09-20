@@ -14,7 +14,7 @@ import {
 import { Building2, ArrowLeft, KeyRound } from 'lucide-react';
 
 export const OrgLogin: React.FC = () => {
-  const { login, requestOtp, verifyOtp } = useAuth();
+  const { login, requestOtp, verifyOtp, logout } = useAuth();
   const navigate = useNavigate();
 
   const [mode, setMode] = useState<'PASSWORD' | 'OTP'>('PASSWORD');
@@ -35,7 +35,10 @@ export const OrgLogin: React.FC = () => {
     try {
       const user = await login(email, password);
       if (user.role === 'CITIZEN' || user.role === 'DONOR') {
-        throw new Error('This account is registered as a Citizen. Please use the Citizen Portal.');
+        await logout();
+        setError('This account is registered as a Citizen. Redirecting to Citizen Portal...');
+        setTimeout(() => navigate('/citizen/home', { replace: true }), 1500);
+        return;
       }
       navigate('/organization/dashboard', { replace: true });
     } catch (err: any) {
@@ -65,7 +68,13 @@ export const OrgLogin: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      await verifyOtp(otpTarget, otpCode, 'LOGIN');
+      const user = await verifyOtp(otpTarget, otpCode, 'LOGIN');
+      if (user && (user.role === 'CITIZEN' || user.role === 'DONOR')) {
+        await logout();
+        setError('This account is registered as a Citizen. Redirecting to Citizen Portal...');
+        setTimeout(() => navigate('/citizen/home', { replace: true }), 1500);
+        return;
+      }
       navigate('/organization/dashboard', { replace: true });
     } catch (err: any) {
       setError(err.message || 'OTP verification failed. Please try again.');

@@ -199,6 +199,7 @@ export class CaseController {
       const result = await caseService.markMessagesAsRead(id, {
         _id: user.userId,
         role: user.role,
+        organizationId: user.organizationId,
       });
 
       res.status(200).json({

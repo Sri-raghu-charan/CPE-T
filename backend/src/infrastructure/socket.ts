@@ -64,14 +64,15 @@ export class SocketManager {
         }
 
         const decoded = jwt.verify(token, env.JWT_SECRET) as any;
-        if (decoded && decoded.sub) {
+        const userId = decoded?.userId || decoded?.sub;
+        if (decoded && userId) {
           const isDb = memoryStore.isDbConnected();
           let userDoc: any = null;
 
           if (isDb) {
-            userDoc = await UserModel.findById(decoded.sub).lean();
+            userDoc = await UserModel.findById(userId).lean();
           } else {
-            userDoc = memoryStore.users.get(decoded.sub);
+            userDoc = memoryStore.users.get(userId);
           }
 
           if (userDoc) {
@@ -81,6 +82,14 @@ export class SocketManager {
               role: userDoc.role,
               name: userDoc.name,
               organizationId: userDoc.organizationId?.toString() || null,
+            };
+          } else if (decoded.email && decoded.role) {
+            socket.user = {
+              _id: userId.toString(),
+              email: decoded.email,
+              role: decoded.role,
+              name: decoded.name || decoded.email,
+              organizationId: decoded.organizationId?.toString() || null,
             };
           }
         }
@@ -105,23 +114,64 @@ export class SocketManager {
         }
       }
 
-      // Client joins a specific case room
+      // Client joins a specific case room - Enforce strict authentication and authorization
       socket.on('case:join', async (caseId: string) => {
         if (!caseId) return;
 
-        // Security check: verify user has right to view this case
-        if (socket.user) {
-          const isStaff =
-            socket.user.role === 'ORGANIZATION_ADMIN' ||
-            socket.user.role === 'ORGANIZATION_AGENT' ||
-            socket.user.role === 'SUPER_ADMIN' ||
-            socket.user.role === 'CPET_ADMIN';
+        // Anonymous users are strictly denied from confidential case rooms
+        if (!socket.user) {
+          logger.warn(`[Socket.IO] Rejected anonymous socket ${socket.id} from joining case:${caseId}`);
+          socket.emit('error', { message: 'Authentication required to join case room' });
+          return;
+        }
+
+        try {
+          let caseDoc: any = null;
+          if (memoryStore.isDbConnected()) {
+            caseDoc = await CaseModel.findById(caseId).lean();
+          } else {
+            caseDoc = memoryStore.cases.get(caseId);
+          }
+
+          if (!caseDoc) {
+            socket.emit('error', { message: `Case '${caseId}' not found` });
+            return;
+          }
+
+          const requesterIdStr =
+            caseDoc.requesterId?._id?.toString() || caseDoc.requesterId?.toString();
+          const orgIdStr =
+            caseDoc.organizationId?._id?.toString() || caseDoc.organizationId?.toString();
+
+          const isCitizen = socket.user.role === 'CITIZEN' || socket.user.role === 'DONOR';
+          const isOrgStaff =
+            socket.user.role === 'ORGANIZATION_ADMIN' || socket.user.role === 'ORGANIZATION_AGENT';
+          const isPlatformAdmin =
+            socket.user.role === 'SUPER_ADMIN' || socket.user.role === 'CPET_ADMIN';
+
+          let isAuthorized = false;
+
+          if (isPlatformAdmin) {
+            isAuthorized = true;
+          } else if (isCitizen) {
+            isAuthorized = requesterIdStr === socket.user._id;
+          } else if (isOrgStaff) {
+            isAuthorized = Boolean(socket.user.organizationId && socket.user.organizationId === orgIdStr);
+          }
+
+          if (!isAuthorized) {
+            logger.warn(
+              `[Socket.IO] Access denied: User ${socket.user._id} (${socket.user.role}) unauthorized for case:${caseId}`
+            );
+            socket.emit('error', { message: 'Access denied: You do not have permission to join this case room' });
+            return;
+          }
 
           socket.join(`case:${caseId}`);
-          logger.debug(`[Socket.IO] Socket ${socket.id} joined case room: case:${caseId}`);
-        } else {
-          // Anonymous allowed in dev/demo
-          socket.join(`case:${caseId}`);
+          logger.debug(`[Socket.IO] Socket ${socket.id} (User: ${socket.user.email}) joined case:${caseId}`);
+        } catch (err: any) {
+          logger.error(`[Socket.IO] Case room authorization error for ${caseId}: ${err.message}`);
+          socket.emit('error', { message: 'Internal authorization error' });
         }
       });
 
@@ -129,6 +179,30 @@ export class SocketManager {
       socket.on('case:leave', (caseId: string) => {
         if (caseId) {
           socket.leave(`case:${caseId}`);
+        }
+      });
+
+      // Organization triage room joining with tenant validation
+      socket.on('org:join', (orgId: string) => {
+        if (!orgId) return;
+        if (!socket.user) {
+          socket.emit('error', { message: 'Authentication required to join organization room' });
+          return;
+        }
+
+        const isPlatformAdmin =
+          socket.user.role === 'SUPER_ADMIN' || socket.user.role === 'CPET_ADMIN';
+        if (isPlatformAdmin || socket.user.organizationId === orgId) {
+          socket.join(`org:${orgId}`);
+          logger.debug(`[Socket.IO] Socket ${socket.id} joined org room: org:${orgId}`);
+        } else {
+          socket.emit('error', { message: 'Access denied: Unauthorized organization room access' });
+        }
+      });
+
+      socket.on('org:leave', (orgId: string) => {
+        if (orgId) {
+          socket.leave(`org:${orgId}`);
         }
       });
 

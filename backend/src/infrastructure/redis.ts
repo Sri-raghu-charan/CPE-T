@@ -45,6 +45,7 @@ class RedisManager {
 
       this.client.on('ready', () => {
         this.isConnected = true;
+        logger.info('[Redis] Redis connected');
       });
 
       this.client.on('error', (err) => {
@@ -65,6 +66,9 @@ class RedisManager {
       const client = this.getClient();
       if (client.status === 'wait') {
         await client.connect();
+      }
+      if (client.status === 'ready' || client.status === 'connect') {
+        logger.info('[Redis] Redis connected');
       }
     } catch (err: any) {
       logger.warn(`[Redis] Optional Redis daemon not reachable: ${err.message}. System continuing with fallback.`);

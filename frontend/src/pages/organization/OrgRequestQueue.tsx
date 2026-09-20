@@ -24,7 +24,7 @@ import { getSocket, joinOrgRoom, leaveOrgRoom } from '../../services/socket.js';
 
 export const OrgRequestQueue: React.FC = () => {
   const { user, token } = useAuth();
-  const orgId = user?.organizationId || '66d000000000000000000010';
+  const orgId = user?.organizationId;
 
   const [filter, setFilter] = useState('');
   const [activeTab, setActiveTab] = useState('ALL');
@@ -32,6 +32,11 @@ export const OrgRequestQueue: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!orgId) {
+      setLoading(false);
+      return;
+    }
+
     async function fetchCases() {
       setLoading(true);
       try {

@@ -54,13 +54,14 @@ export const authRateLimiter = createRateLimiter({
 });
 
 // 3. OTP Dispatch Rate Limiter (SMS/Email abuse prevention)
+// Uses composite key (IP + target) to prevent attackers on different IPs from causing DoS for victims
 export const otpRateLimiter = createRateLimiter({
   name: 'otp',
   windowMs: 5 * 60 * 1000, // 5 minutes
   max: env.NODE_ENV === 'test' ? 50 : 5, // 5 requests per 5 min
   keyGenerator: (req) => {
-    const target = req.body?.email || req.body?.phone || req.ip;
-    return `otp:${target}`;
+    const target = (req.body?.email || req.body?.phone || 'unknown').toLowerCase().trim();
+    return `otp:${req.ip}:${target}`;
   },
 });
 

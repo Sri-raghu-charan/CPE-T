@@ -8,22 +8,31 @@ import { connectorRegistry } from './connectors/connector.registry.js';
 import { socketManager } from '../../infrastructure/socket.js';
 import { logger } from '../../utils/logger.js';
 
+import { env } from '../../config/env.js';
+
 export class DispatchQueueService {
   private queue: Queue | null = null;
   private worker: Worker | null = null;
   private processedDispatchIds = new Set<string>();
 
   constructor() {
-    this.initQueue();
+    // Initialized via init() in the startup lifecycle
   }
 
-  private initQueue() {
+  public async init(): Promise<void> {
     const redisClient = redisManager.getClient();
     // Only configure BullMQ if Redis is active
-    if (redisClient && redisClient.status === 'ready') {
+    if (redisClient && (redisClient.status === 'ready' || redisClient.status === 'connect')) {
       try {
+        const connectionOptions = {
+          host: env.REDIS_HOST,
+          port: env.REDIS_PORT,
+          password: env.REDIS_PASSWORD || undefined,
+          maxRetriesPerRequest: null,
+        };
+
         this.queue = new Queue('cpet-outbound-dispatch', {
-          connection: redisClient,
+          connection: connectionOptions,
           defaultJobOptions: {
             attempts: 3,
             backoff: {
@@ -33,23 +42,35 @@ export class DispatchQueueService {
             removeOnComplete: true,
           },
         });
+        logger.info('[BullMQ] Queue initialized: cpet-outbound-dispatch');
 
         this.worker = new Worker(
           'cpet-outbound-dispatch',
           async (job: Job<DispatchPayload>) => {
             return this.processDispatchJob(job.data);
           },
-          { connection: redisClient }
+          { connection: connectionOptions }
         );
 
         this.worker.on('failed', (job, err) => {
           logger.error(`[BullMQ] Dispatch job failed permanently: ${job?.id}`, { err });
         });
 
-        logger.info('[BullMQ] Outbound dispatch queue & worker initialized with Redis');
+        logger.info('[BullMQ] Worker initialized: cpet-outbound-dispatch');
       } catch (err: any) {
         logger.warn(`[BullMQ] Redis queue initialization failed: ${err.message}. Using resilient memory worker.`);
       }
+    }
+  }
+
+  public async stop(): Promise<void> {
+    if (this.worker) {
+      await this.worker.close();
+      this.worker = null;
+    }
+    if (this.queue) {
+      await this.queue.close();
+      this.queue = null;
     }
   }
 

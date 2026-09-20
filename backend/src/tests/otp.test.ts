@@ -3,7 +3,6 @@ import request from 'supertest';
 import crypto from 'node:crypto';
 import { createApp } from '../app.js';
 import { authService } from '../modules/auth/service.js';
-import { UserModel, OtpModel, SessionModel } from '@cpet/database';
 import { setEmailProvider, EmailProvider } from '../providers/email/index.js';
 import { memoryStore } from '../infrastructure/store.js';
 import { logger } from '../utils/logger.js';

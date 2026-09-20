@@ -285,22 +285,22 @@ describe('Phase 8 — Complete Integration, End-to-End QA & Production Polish', 
       // Close it first through valid state machine path
       await caseService.transitionStatus(
         caseId,
-        { targetStatus: 'ACKNOWLEDGED', message: 'Ack' },
+        { targetStatus: 'ACKNOWLEDGED', message: 'Ack', isInternal: false },
         { _id: lloydAgent._id, name: lloydAgent.name, email: lloydAgent.email, role: lloydAgent.role, organizationId: lloydOrgId }
       );
       await caseService.transitionStatus(
         caseId,
-        { targetStatus: 'IN_PROGRESS', message: 'In progress' },
+        { targetStatus: 'IN_PROGRESS', message: 'In progress', isInternal: false },
         { _id: lloydAgent._id, name: lloydAgent.name, email: lloydAgent.email, role: lloydAgent.role, organizationId: lloydOrgId }
       );
       await caseService.transitionStatus(
         caseId,
-        { targetStatus: 'RESOLVED', message: 'Resolved' },
+        { targetStatus: 'RESOLVED', message: 'Resolved', isInternal: false },
         { _id: lloydAgent._id, name: lloydAgent.name, email: lloydAgent.email, role: lloydAgent.role, organizationId: lloydOrgId }
       );
       await caseService.transitionStatus(
         caseId,
-        { targetStatus: 'CLOSED', message: 'Closed' },
+        { targetStatus: 'CLOSED', message: 'Closed', isInternal: false },
         { _id: citizenUser._id, name: citizenUser.name, email: citizenUser.email, role: citizenUser.role }
       );
 

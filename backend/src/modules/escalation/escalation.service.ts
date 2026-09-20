@@ -7,7 +7,7 @@ import {
   CasePriority,
   CaseType,
 } from '@cpet/database';
-import { memoryStore, MemoryCase, MemoryCaseEvent } from '../../infrastructure/store.js';
+import { memoryStore } from '../../infrastructure/store.js';
 import { slaService } from '../sla/sla.service.js';
 import { socketManager } from '../../infrastructure/socket.js';
 import { logger } from '../../utils/logger.js';

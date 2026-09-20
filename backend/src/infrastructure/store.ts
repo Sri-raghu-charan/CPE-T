@@ -25,7 +25,6 @@ import {
   BloodGroup,
   DonorAvailabilityStatus,
   ContactPreference,
-  ISlaPolicy,
 } from '@cpet/database';
 
 export interface MemoryUser {

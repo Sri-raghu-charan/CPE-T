@@ -541,8 +541,14 @@ In-app notification records for citizens and organization staff.
 ### 10.1 AI-First Intake Module
 - **Location**: `backend/src/modules/ai/`
 - **Core Principle**: The user should never need to decipher complex categorization codes.
-- **NLP Analysis**: Inspects natural language text or transcribed speech audio. Extracts key intent (`SERVICE_REQUEST`, `COMPLAINT`, `GRIEVANCE`, `BLOOD_REQUEST`), target brand/organization (e.g. `Lloyd`, `Apex`, `Samsung`), product/service domain (e.g. `AC`, `Transformer`), and urgency.
-- **Dynamic Question Generation**: Automatically identifies missing mandatory attributes (e.g., city, address, purchase invoice number) and prompts conversational follow-up questions before producing a structured, verified request payload ready for user confirmation.
+- **Engine Architecture (Deterministic Heuristic Baseline)**:
+  The current implementation operates as a high-performance, deterministic heuristic baseline NLP engine that:
+  1. Inspects natural language text or transcribed speech audio without external network latency or token costs.
+  2. Extracts key intent (`SERVICE_REQUEST`, `COMPLAINT`, `GRIEVANCE`, `BLOOD_REQUEST`), target brand/organization (e.g. `Lloyd`, `Apex`, `Samsung`), product/service domain (e.g. `AC`, `Transformer`), and urgency.
+  3. Formulates multi-turn conversational context, accumulating structured attributes across user responses.
+  4. Dynamically generates targeted clarification prompts for missing mandatory attributes (e.g. city, address, purchase invoice number) before producing a structured request payload ready for user confirmation.
+- **Pluggable Extensibility**:
+  The module is designed with a provider adapter pattern (`AiProvider` interface), enabling seamless hot-swapping or augmenting with generative cloud LLMs (e.g., Google Gemini, OpenAI GPT-4o, Anthropic Claude) and speech-to-text models (e.g., OpenAI Whisper) in production environments without impacting downstream routing, case state machines, or escalation queues.
 
 ### 10.2 Organization Directory & Routing Engine
 - **Location**: `backend/src/modules/routing/` & `backend/src/modules/organizations/`

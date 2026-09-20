@@ -60,6 +60,7 @@ const destinationSchema = new Schema<IDestination>(
     credentials: {
       type: Schema.Types.Mixed,
       default: {},
+      select: false,
     },
     source: {
       type: String,
@@ -91,6 +92,9 @@ const destinationSchema = new Schema<IDestination>(
   },
   { timestamps: true }
 );
+
+destinationSchema.index({ organizationId: 1, activeStatus: 1, verificationStatus: 1 });
+destinationSchema.index({ type: 1, activeStatus: 1, verificationStatus: 1 });
 
 destinationSchema.plugin(auditPlugin);
 

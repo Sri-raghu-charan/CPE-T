@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.js';
 import {
@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 export const CitizenBloodHub: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -44,9 +44,9 @@ export const CitizenBloodHub: React.FC = () => {
 
   // Safe Contact state
   const [selectedDonor, setSelectedDonor] = useState<any | null>(null);
-  const [contactHospital, setContactHospital] = useState('Metro Trauma Hospital');
+  const [contactHospital, setContactHospital] = useState('');
   const [contactUnits, setContactUnits] = useState('2');
-  const [contactPhone, setContactPhone] = useState('+91 9876543210');
+  const [contactPhone, setContactPhone] = useState(user?.phone || '');
   const [contactMessage, setContactMessage] = useState('Urgent requirement for emergency surgery');
   const [sendingAlert, setSendingAlert] = useState(false);
   const [alertSuccess, setAlertSuccess] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export const CitizenBloodHub: React.FC = () => {
   const [reqPatient, setReqPatient] = useState('');
   const [reqUrgency, setReqUrgency] = useState('CRITICAL_IMMEDIATE');
   const [reqRelationship, setReqRelationship] = useState('FAMILY');
-  const [reqPhone, setReqPhone] = useState('');
+  const [reqPhone, setReqPhone] = useState(user?.phone || '');
   const [reqLocality, setReqLocality] = useState('Madhapur');
   const [reqCity, setReqCity] = useState('Hyderabad');
   const [submittingCase, setSubmittingCase] = useState(false);
@@ -71,17 +71,20 @@ export const CitizenBloodHub: React.FC = () => {
   const [donorMunicipality, setDonorMunicipality] = useState('Greater Hyderabad');
   const [donorDistrict, setDonorDistrict] = useState('Hyderabad');
   const [donorPreference, setDonorPreference] = useState('IN_APP');
-  const [donorPhone, setDonorPhone] = useState('+91 9876543210');
+  const [donorPhone, setDonorPhone] = useState(user?.phone || '');
   const [registering, setRegistering] = useState(false);
   const [regSuccess, setRegSuccess] = useState<string | null>(null);
 
-  // Initial load
+  // Sync user phone if available later
   useEffect(() => {
-    handleSearch();
-    loadMyDonorProfile();
-  }, [token]);
+    if (user?.phone) {
+      setContactPhone((prev) => prev || user.phone || '');
+      setReqPhone((prev) => prev || user.phone || '');
+      setDonorPhone((prev) => prev || user.phone || '');
+    }
+  }, [user?.phone]);
 
-  const loadMyDonorProfile = async () => {
+  const loadMyDonorProfile = useCallback(async () => {
     if (!token) return;
     try {
       const res = await fetch('/api/v1/blood/donors/me', {
@@ -94,32 +97,41 @@ export const CitizenBloodHub: React.FC = () => {
     } catch (err) {
       console.error('Failed to fetch donor profile', err);
     }
-  };
+  }, [token]);
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setSearching(true);
-    setSearchError(null);
-    try {
-      const params = new URLSearchParams({
-        bloodGroup: searchGroup,
-        locality: searchLocality,
-        radiusKm: searchRadius,
-      });
-      const res = await fetch(`/api/v1/blood/search?${params.toString()}`);
-      if (res.ok) {
-        const json = await res.json();
-        setDiscoveryResult(json.data);
-      } else {
-        const err = await res.json();
-        setSearchError(err.error?.message || 'Failed to search blood availability');
+  const handleSearch = useCallback(
+    async (e?: React.FormEvent) => {
+      if (e) e.preventDefault();
+      setSearching(true);
+      setSearchError(null);
+      try {
+        const params = new URLSearchParams({
+          bloodGroup: searchGroup,
+          locality: searchLocality,
+          radiusKm: searchRadius,
+        });
+        const res = await fetch(`/api/v1/blood/search?${params.toString()}`);
+        if (res.ok) {
+          const json = await res.json();
+          setDiscoveryResult(json.data);
+        } else {
+          const err = await res.json();
+          setSearchError(err.error?.message || 'Failed to search blood availability');
+        }
+      } catch (err: any) {
+        setSearchError(err.message);
+      } finally {
+        setSearching(false);
       }
-    } catch (err: any) {
-      setSearchError(err.message);
-    } finally {
-      setSearching(false);
-    }
-  };
+    },
+    [searchGroup, searchLocality, searchRadius]
+  );
+
+  // Initial load
+  useEffect(() => {
+    handleSearch();
+    loadMyDonorProfile();
+  }, [handleSearch, loadMyDonorProfile]);
 
   const handleSendRelayAlert = async (e: React.FormEvent) => {
     e.preventDefault();

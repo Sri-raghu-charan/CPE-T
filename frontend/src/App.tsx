@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.js';
 import { ProtectedRoute } from './components/auth/ProtectedRoute.js';
@@ -8,38 +8,48 @@ import { AppShell } from './components/layout/AppShell.js';
 import { CitizenShell } from './components/layout/CitizenShell.js';
 import { OrgShell } from './components/layout/OrgShell.js';
 
-// Public & Gateway Pages
-import { SplashScreen } from './pages/SplashScreen.js';
-import { ArchitectureOverview } from './pages/ArchitectureOverview.js';
-import { DesignSystemShowcase } from './pages/DesignSystemShowcase.js';
-import { ModulesView } from './pages/ModulesView.js';
-import { HealthView } from './pages/HealthView.js';
+// Public & Gateway Pages (Lazy Loaded)
+const SplashScreen = lazy(() => import('./pages/SplashScreen.js').then((m) => ({ default: m.SplashScreen })));
+const ArchitectureOverview = lazy(() => import('./pages/ArchitectureOverview.js').then((m) => ({ default: m.ArchitectureOverview })));
+const DesignSystemShowcase = lazy(() => import('./pages/DesignSystemShowcase.js').then((m) => ({ default: m.DesignSystemShowcase })));
+const ModulesView = lazy(() => import('./pages/ModulesView.js').then((m) => ({ default: m.ModulesView })));
+const HealthView = lazy(() => import('./pages/HealthView.js').then((m) => ({ default: m.HealthView })));
 
-// Citizen Auth & Workspace
-import { CitizenLogin } from './pages/citizen/CitizenLogin.js';
-import { CitizenSignup } from './pages/citizen/CitizenSignup.js';
-import { CitizenHome } from './pages/citizen/CitizenHome.js';
-import { CitizenProfile } from './pages/citizen/CitizenProfile.js';
-import { CitizenMyRequests } from './pages/citizen/CitizenMyRequests.js';
-import { CitizenNewRequest } from './pages/citizen/CitizenNewRequest.js';
-import { CitizenCaseDetails } from './pages/citizen/CitizenCaseDetails.js';
-import { CitizenAiIntake } from './pages/citizen/CitizenAiIntake.js';
-import { CitizenBloodHub } from './pages/citizen/CitizenBloodHub.js';
+// Citizen Auth & Workspace (Lazy Loaded)
+const CitizenLogin = lazy(() => import('./pages/citizen/CitizenLogin.js').then((m) => ({ default: m.CitizenLogin })));
+const CitizenSignup = lazy(() => import('./pages/citizen/CitizenSignup.js').then((m) => ({ default: m.CitizenSignup })));
+const CitizenHome = lazy(() => import('./pages/citizen/CitizenHome.js').then((m) => ({ default: m.CitizenHome })));
+const CitizenProfile = lazy(() => import('./pages/citizen/CitizenProfile.js').then((m) => ({ default: m.CitizenProfile })));
+const CitizenMyRequests = lazy(() => import('./pages/citizen/CitizenMyRequests.js').then((m) => ({ default: m.CitizenMyRequests })));
+const CitizenNewRequest = lazy(() => import('./pages/citizen/CitizenNewRequest.js').then((m) => ({ default: m.CitizenNewRequest })));
+const CitizenCaseDetails = lazy(() => import('./pages/citizen/CitizenCaseDetails.js').then((m) => ({ default: m.CitizenCaseDetails })));
+const CitizenAiIntake = lazy(() => import('./pages/citizen/CitizenAiIntake.js').then((m) => ({ default: m.CitizenAiIntake })));
+const CitizenBloodHub = lazy(() => import('./pages/citizen/CitizenBloodHub.js').then((m) => ({ default: m.CitizenBloodHub })));
 
-// Organization Auth & Workspace
-import { OrgLogin } from './pages/organization/OrgLogin.js';
-import { OrgOnboarding } from './pages/organization/OrgOnboarding.js';
-import { OrgDashboard } from './pages/organization/OrgDashboard.js';
-import { OrgRequestQueue } from './pages/organization/OrgRequestQueue.js';
-import { OrgRequestDetails } from './pages/organization/OrgRequestDetails.js';
-import { OrgTeam } from './pages/organization/OrgTeam.js';
-import { OrgSettings } from './pages/organization/OrgSettings.js';
+// Organization Auth & Workspace (Lazy Loaded)
+const OrgLogin = lazy(() => import('./pages/organization/OrgLogin.js').then((m) => ({ default: m.OrgLogin })));
+const OrgOnboarding = lazy(() => import('./pages/organization/OrgOnboarding.js').then((m) => ({ default: m.OrgOnboarding })));
+const OrgDashboard = lazy(() => import('./pages/organization/OrgDashboard.js').then((m) => ({ default: m.OrgDashboard })));
+const OrgRequestQueue = lazy(() => import('./pages/organization/OrgRequestQueue.js').then((m) => ({ default: m.OrgRequestQueue })));
+const OrgRequestDetails = lazy(() => import('./pages/organization/OrgRequestDetails.js').then((m) => ({ default: m.OrgRequestDetails })));
+const OrgTeam = lazy(() => import('./pages/organization/OrgTeam.js').then((m) => ({ default: m.OrgTeam })));
+const OrgSettings = lazy(() => import('./pages/organization/OrgSettings.js').then((m) => ({ default: m.OrgSettings })));
+
+const PageFallback: React.FC = () => (
+  <div className="flex min-h-[60vh] items-center justify-center p-8">
+    <div className="flex flex-col items-center gap-3">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" />
+      <span className="text-sm font-medium text-slate-500">Loading...</span>
+    </div>
+  </div>
+);
 
 export const App: React.FC = () => {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
           {/* Splash Gateway */}
           <Route path="/" element={<SplashScreen />} />
 
@@ -102,7 +112,8 @@ export const App: React.FC = () => {
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
+      </Suspense>
+    </BrowserRouter>
     </AuthProvider>
   );
 };

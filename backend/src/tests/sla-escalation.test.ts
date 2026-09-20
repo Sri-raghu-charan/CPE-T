@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import request from 'supertest';
-import { createApp } from '../app.js';
 import { slaService } from '../modules/sla/sla.service.js';
 import { escalationService } from '../modules/escalation/escalation.service.js';
 import { escalationQueueService } from '../modules/escalation/escalation.queue.js';
@@ -8,8 +6,6 @@ import { caseService } from '../modules/cases/case.service.js';
 import { memoryStore } from '../infrastructure/store.js';
 
 describe('Phase 7 — Advanced SLA Engine & Configurable Multi-Tier Escalation', () => {
-  const app = createApp();
-
   beforeEach(() => {
     memoryStore.seedDefaults();
   });
@@ -125,7 +121,7 @@ describe('Phase 7 — Advanced SLA Engine & Configurable Multi-Tier Escalation',
           category: 'Consumer Grievance',
           priority: 'URGENT',
           organizationId: '66d000000000000000000010',
-        },
+        } as any,
         citizenUser as any
       );
 
@@ -161,7 +157,7 @@ describe('Phase 7 — Advanced SLA Engine & Configurable Multi-Tier Escalation',
           category: 'Consumer Appliance & Utilities',
           priority: 'HIGH',
           organizationId: '66d000000000000000000030', // Lloyd
-        },
+        } as any,
         citizenUser as any
       );
 
@@ -187,7 +183,7 @@ describe('Phase 7 — Advanced SLA Engine & Configurable Multi-Tier Escalation',
           category: 'Public Infrastructure',
           priority: 'HIGH',
           organizationId: '66d000000000000000000010',
-        },
+        } as any,
         citizenUser as any
       );
 
