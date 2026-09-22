@@ -38,6 +38,21 @@ export function createApp(): Express {
   // Versioned API
   app.use('/api/v1', apiV1Router);
 
+  // Root endpoint info
+  app.get('/', (_req, res) => {
+    res.status(200).json({
+      name: 'CPET API Server',
+      status: 'online',
+      version: '0.1.0',
+      description: 'Consumer Problem Escalation & Tracking Backend',
+      endpoints: {
+        health: '/health',
+        apiV1: '/api/v1',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   // 404 handler
   app.use((_req, _res, next) => {
     next(new NotFoundError('Requested route does not exist'));

@@ -104,3 +104,36 @@ slaRouter.post(
     }
   }
 );
+
+/**
+ * GET/POST /api/v1/sla/sweep-cron
+ * Dedicated endpoint for Vercel Cron Jobs (and external schedulers) to perform SLA sweeps.
+ * Validates CRON_SECRET header if configured.
+ */
+const cronSweepHandler = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret) {
+      const authHeader = req.headers.authorization;
+      if (authHeader !== `Bearer ${cronSecret}`) {
+        res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid or missing CRON_SECRET' } });
+        return;
+      }
+    }
+
+    const result = await escalationQueueService.runImmediateSweep();
+    res.status(200).json({
+      success: true,
+      source: 'cron',
+      message: `Escalation sweep completed: ${result.escalatedCount} cases escalated out of ${result.evaluatedCount} evaluated.`,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+slaRouter.get('/sweep-cron', cronSweepHandler);
+slaRouter.post('/sweep-cron', cronSweepHandler);
+

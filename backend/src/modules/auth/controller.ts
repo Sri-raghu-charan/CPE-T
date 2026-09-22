@@ -6,18 +6,19 @@ import { bruteForceProtector, logSecurityEvent } from '../../middleware/security
 export class AuthController {
   private setCookies(res: Response, accessToken: string, refreshToken: string): void {
     const isProd = env.NODE_ENV === 'production';
+    const sameSitePolicy = isProd ? 'none' : 'lax';
 
     res.cookie('cpet_token', accessToken, {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'lax',
+      sameSite: sameSitePolicy,
       maxAge: 15 * 60 * 1000, // 15 mins
     });
 
     res.cookie('cpet_refresh_token', refreshToken, {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'lax',
+      sameSite: sameSitePolicy,
       path: '/api/v1/auth/refresh',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
@@ -172,15 +173,16 @@ export class AuthController {
       await authService.logout(refreshToken);
 
       const isProd = env.NODE_ENV === 'production';
+      const sameSitePolicy = isProd ? 'none' : 'lax';
       res.clearCookie('cpet_token', {
         httpOnly: true,
         secure: isProd,
-        sameSite: 'lax',
+        sameSite: sameSitePolicy,
       });
       res.clearCookie('cpet_refresh_token', {
         httpOnly: true,
         secure: isProd,
-        sameSite: 'lax',
+        sameSite: sameSitePolicy,
         path: '/api/v1/auth/refresh',
       });
 

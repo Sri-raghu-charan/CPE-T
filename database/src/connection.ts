@@ -18,7 +18,7 @@ export interface DbConnectionOptions {
 
 class DatabaseManager {
   private static instance: DatabaseManager;
-  private isConnecting: boolean = false;
+  private connectingPromise: Promise<void> | null = null;
 
   private constructor() {
     this.setupListeners();
@@ -50,27 +50,33 @@ class DatabaseManager {
       return;
     }
 
-    if (this.isConnecting) {
-      return;
+    if (this.connectingPromise) {
+      return this.connectingPromise;
     }
 
-    this.isConnecting = true;
+    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const defaultMaxPool = isServerless ? 10 : 50;
+    const defaultMinPool = isServerless ? 1 : 5;
 
     const connectOptions: ConnectOptions = {
-      maxPoolSize: options.maxPoolSize || 50,
-      minPoolSize: options.minPoolSize || 5,
+      maxPoolSize: options.maxPoolSize || defaultMaxPool,
+      minPoolSize: options.minPoolSize ?? defaultMinPool,
       serverSelectionTimeoutMS: options.serverSelectionTimeoutMS || 5000,
       connectTimeoutMS: options.connectTimeoutMS || 10000,
     };
 
-    try {
-      await mongoose.connect(options.uri, connectOptions);
-      this.isConnecting = false;
-    } catch (error) {
-      this.isConnecting = false;
-      console.error('[Database] Failed to connect to MongoDB:', error);
-      throw error;
-    }
+    this.connectingPromise = (async () => {
+      try {
+        await mongoose.connect(options.uri, connectOptions);
+      } catch (error) {
+        console.error('[Database] Failed to connect to MongoDB:', error);
+        throw error;
+      } finally {
+        this.connectingPromise = null;
+      }
+    })();
+
+    return this.connectingPromise;
   }
 
   public async disconnect(): Promise<void> {

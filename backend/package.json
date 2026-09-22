@@ -4,6 +4,21 @@
   "private": true,
   "type": "module",
   "main": "dist/server.js",
+  "types": "dist/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./app": {
+      "types": "./dist/app.d.ts",
+      "default": "./dist/app.js"
+    },
+    "./config": {
+      "types": "./dist/config/env.d.ts",
+      "default": "./dist/config/env.js"
+    }
+  },
   "scripts": {
     "predev": "npm --prefix ../database run build",
     "dev": "tsx watch src/server.ts",

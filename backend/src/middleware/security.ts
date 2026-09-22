@@ -40,9 +40,18 @@ export function setupCors(): RequestHandler {
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
+
+      const isAllowed = allowedOrigins.some((pattern) => {
+        if (pattern === '*' || pattern === origin) return true;
+        if (pattern.includes('*')) {
+          const regex = new RegExp('^' + pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
+          return regex.test(origin);
+        }
+        return false;
+      });
+
       if (
-        allowedOrigins.indexOf(origin) !== -1 ||
-        allowedOrigins.includes('*') ||
+        isAllowed ||
         (env.NODE_ENV === 'development' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))
       ) {
         return callback(null, true);
