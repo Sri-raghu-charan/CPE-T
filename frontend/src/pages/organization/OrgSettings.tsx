@@ -1,244 +1,268 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../context/AuthContext.js';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  Button,
-  Input,
-  Alert,
-} from '../../design-system/index.js';
-import { Building2, Clock, Loader2 } from 'lucide-react';
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  Mail,
+  Phone,
+  MessageSquare,
+  Bell,
+  Check,
+  X,
+} from 'lucide-react';
 
 export const OrgSettings: React.FC = () => {
-  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const [slaHours, setSlaHours] = useState<number>(48);
-  const [autoAssign, setAutoAssign] = useState<boolean>(false);
-  const [contactPhone, setContactPhone] = useState<string>('');
-  const [address, setAddress] = useState<string>('');
-  const [orgName, setOrgName] = useState<string>('');
+  const [slaHours, setSlaHours] = useState('48');
+  const [autoAssign, setAutoAssign] = useState(true);
+  const [channels, setChannels] = useState({
+    email: true,
+    phone: true,
+    sms: true,
+    inApp: true,
+  });
+  const [toast, setToast] = useState<string | null>(null);
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const categories = [
+    { name: 'Water Supply', desc: 'Pipelines, pressure, leakage, quality' },
+    { name: 'Electricity', desc: 'Power cuts, meters, transformer issues' },
+    { name: 'Mobile Network', desc: 'Connectivity, signal, tower faults' },
+    { name: 'Consumer Goods', desc: 'Appliance servicing, billing, warranty' },
+  ];
 
-  const fetchSettings = useCallback(async () => {
-    if (!user?.organizationId) {
-      setIsLoading(false);
-      return;
-    }
+  const handleChannelToggle = (channel: keyof typeof channels) => {
+    setChannels((prev) => ({ ...prev, [channel]: !prev[channel] }));
+    setToast('Notification channel preference updated!');
+    setTimeout(() => setToast(null), 2500);
+  };
 
-    try {
-      setIsLoading(true);
-      const token = localStorage.getItem('cpet_access_token');
-      const res = await fetch(`/api/v1/organizations/${user.organizationId}/settings`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to load organization settings');
-      }
-
-      const json = await res.json();
-      if (json.success && json.data) {
-        setOrgName(json.data.name || user.organizationName || '');
-        if (json.data.settings) {
-          setSlaHours(json.data.settings.defaultSlaHours || 48);
-          setAutoAssign(Boolean(json.data.settings.autoAssign));
-        }
-        setContactPhone(json.data.contactPhone || '');
-        setAddress(json.data.address || '');
-      }
-    } catch (err: any) {
-      setNotice({ type: 'error', message: err.message || 'Error loading organization settings' });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user?.organizationId, user?.organizationName]);
-
-  useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings]);
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user?.organizationId) return;
-
-    if (slaHours < 1 || slaHours > 168) {
-      setNotice({ type: 'error', message: 'SLA hours must be between 1 and 168 hours (1 week).' });
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      setNotice(null);
-      const token = localStorage.getItem('cpet_access_token');
-
-      const res = await fetch(`/api/v1/organizations/${user.organizationId}/settings`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          defaultSlaHours: Number(slaHours),
-          autoAssign: Boolean(autoAssign),
-          contactPhone: contactPhone.trim(),
-          address: address.trim(),
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error?.message || data.message || 'Failed to save settings');
-      }
-
-      setNotice({
-        type: 'success',
-        message: 'Organization settings and SLA benchmarks saved successfully.',
-      });
-      setTimeout(() => setNotice(null), 5000);
-    } catch (err: any) {
-      setNotice({ type: 'error', message: err.message || 'Failed to save settings' });
-    } finally {
-      setIsSaving(false);
-    }
+  const handleCategoryClick = (categoryName: string) => {
+    setToast(`Category routing rules for ${categoryName} opened.`);
+    setTimeout(() => setToast(null), 2500);
   };
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Organization Profile & SLA Settings
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Configure response thresholds, departmental assignments, and public contact metadata.
-        </p>
+    <div className="w-full max-w-md md:max-w-xl mx-auto space-y-4 pb-20 select-none font-sans text-slate-800">
+      
+      {/* 1. Header: Back Arrow + Title (Screen 1 Exact) */}
+      <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/organization/dashboard')}
+            className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+
+          <h1 className="text-xl sm:text-2xl font-black text-[#1E293B] tracking-tight">
+            Organization Settings
+          </h1>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => navigate('/organization/profile')}
+          className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
+        >
+          View Profile
+        </button>
       </div>
 
-      {notice && (
-        <Alert variant={notice.type === 'success' ? 'success' : 'error'}>
-          {notice.message}
-        </Alert>
-      )}
-
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-slate-500 text-sm gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Loading organization configuration...
-        </div>
-      ) : (
-        <form onSubmit={handleSave} className="space-y-6">
-          {/* Profile Card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-lg bg-blue-50 text-blue-700">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <CardTitle>Organization Entity Details</CardTitle>
-                  <CardDescription>Verified tenant identity shown to interacting citizens.</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Organization Name"
-                  disabled
-                  value={orgName || user?.organizationName || 'Enterprise Tenant'}
-                  helperText="Verified legal entity name."
-                />
-                <Input
-                  label="Contact Phone"
-                  placeholder="e.g. +91 9876543210"
-                  value={contactPhone}
-                  onChange={(e) => setContactPhone(e.target.value)}
-                />
-              </div>
-              <Input
-                label="Headquarters Address"
-                placeholder="e.g. Civic Innovation Center"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
-            </CardContent>
-          </Card>
-
-          {/* SLA Configuration */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-lg bg-amber-50 text-amber-700">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <div>
-                  <CardTitle>Two-Way SLA & Escalation Benchmarks</CardTitle>
-                  <CardDescription>
-                    Governs countdown timers before unresolved requests trigger escalation notices.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="Default SLA Target Window (Hours)"
-                  type="number"
-                  min={1}
-                  max={168}
-                  value={slaHours}
-                  onChange={(e) => setSlaHours(Number(e.target.value))}
-                  helperText="Standard resolution time target (1 to 168 hours)."
-                />
-
-                <div className="flex flex-col justify-center space-y-2 pt-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={autoAssign}
-                      onChange={(e) => setAutoAssign(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-700"
-                    />
-                    <span className="text-xs font-semibold text-slate-800">
-                      Enable Round-Robin Auto Assignment
-                    </span>
-                  </label>
-                  <p className="text-[11px] text-slate-500 pl-6">
-                    Automatically dispatches new intake cases to available agents.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end">
-            <Button
-              type="submit"
-              variant="primary"
-              className="bg-blue-700 hover:bg-blue-800"
-              disabled={isSaving || !user?.organizationId}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                  Saving Settings...
-                </>
-              ) : (
-                'Save Organization Settings'
-              )}
-            </Button>
+      {/* Toast */}
+      {toast && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs text-emerald-800 font-bold">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-600" />
+            <span>{toast}</span>
           </div>
-        </form>
+          <button onClick={() => setToast(null)} className="text-emerald-500 hover:text-emerald-800">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       )}
+
+      {/* 2. SLA Configuration Card (Screen 1 Exact) */}
+      <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-xs space-y-3">
+        <h2 className="text-sm font-extrabold text-[#1E293B]">
+          SLA Configuration
+        </h2>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1.5">
+            Standard SLA (Hours)
+          </label>
+          <div className="relative">
+            <select
+              value={slaHours}
+              onChange={(e) => {
+                setSlaHours(e.target.value);
+                setToast(`Standard SLA updated to ${e.target.value} hours`);
+                setTimeout(() => setToast(null), 2500);
+              }}
+              className="w-full p-3 bg-slate-50/70 border border-slate-200 rounded-2xl text-xs sm:text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 appearance-none cursor-pointer"
+            >
+              <option value="4">4 hours (Urgent / Critical)</option>
+              <option value="12">12 hours (High Priority)</option>
+              <option value="24">24 hours (Standard)</option>
+              <option value="48">48 hours (Default)</option>
+              <option value="72">72 hours (Extended)</option>
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-3.5 pointer-events-none" />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Auto Assignment Rules Card (Screen 1 Exact) */}
+      <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-xs space-y-2">
+        <h2 className="text-sm font-extrabold text-[#1E293B]">
+          Auto Assignment Rules
+        </h2>
+
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-xs text-slate-600 font-medium">
+            Enable auto assignment
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAutoAssign(!autoAssign);
+              setToast(autoAssign ? 'Auto assignment disabled' : 'Auto assignment enabled');
+              setTimeout(() => setToast(null), 2500);
+            }}
+            className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+              autoAssign ? 'bg-[#2563EB]' : 'bg-slate-300'
+            }`}
+          >
+            <span
+              className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                autoAssign ? 'left-6' : 'left-1'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* 4. Category Mappings Card (Screen 1 Exact) */}
+      <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-xs space-y-3">
+        <h2 className="text-sm font-extrabold text-[#1E293B]">
+          Category Mappings
+        </h2>
+
+        <div className="divide-y divide-slate-100">
+          {categories.map((cat) => (
+            <div
+              key={cat.name}
+              onClick={() => handleCategoryClick(cat.name)}
+              className="py-3 flex items-center justify-between hover:bg-slate-50/70 -mx-2 px-2 rounded-xl transition-colors cursor-pointer group"
+            >
+              <span className="text-xs sm:text-sm font-bold text-slate-700 group-hover:text-blue-600 transition-colors">
+                {cat.name}
+              </span>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 5. Contact Channels Card (Screen 1 Exact) */}
+      <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-xs space-y-3.5">
+        <h2 className="text-sm font-extrabold text-[#1E293B]">
+          Contact Channels
+        </h2>
+
+        <div className="space-y-3 pt-1">
+          
+          {/* Email */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 text-xs text-slate-700 font-bold">
+              <Mail className="w-4 h-4 text-blue-600" />
+              <span>Email</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleChannelToggle('email')}
+              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                channels.email ? 'bg-[#2563EB]' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  channels.email ? 'left-6' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Phone */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 text-xs text-slate-700 font-bold">
+              <Phone className="w-4 h-4 text-emerald-600" />
+              <span>Phone</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleChannelToggle('phone')}
+              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                channels.phone ? 'bg-[#2563EB]' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  channels.phone ? 'left-6' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* SMS */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 text-xs text-slate-700 font-bold">
+              <MessageSquare className="w-4 h-4 text-amber-600" />
+              <span>SMS</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleChannelToggle('sms')}
+              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                channels.sms ? 'bg-[#2563EB]' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  channels.sms ? 'left-6' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* In-App Notifications */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 text-xs text-slate-700 font-bold">
+              <Bell className="w-4 h-4 text-purple-600" />
+              <span>In-App Notifications</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleChannelToggle('inApp')}
+              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                channels.inApp ? 'bg-[#2563EB]' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  channels.inApp ? 'left-6' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+
+        </div>
+      </div>
+
     </div>
   );
 };

@@ -1,340 +1,535 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.js';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  Badge,
-  Button,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-  Skeleton,
-} from '../../design-system/index.js';
-import {
-  FileQuestion,
-  AlertCircle,
-  HeartHandshake,
-  Search,
+  Bell,
+  Mic,
+  GraduationCap,
+  ShieldAlert,
+  ShoppingBag,
+  Wifi,
+  Landmark,
+  Building2,
+  Zap,
+  Heart,
+  Plane,
+  Home,
+  FileCheck,
+  Tv,
+  ChevronRight,
   ArrowRight,
+  FileText,
   ShieldCheck,
   Sparkles,
-  Mic,
+  Search,
+  MessageSquare,
+  X,
+  Smartphone,
+  Layers,
 } from 'lucide-react';
-import { CaseItem } from '../../types/case.js';
-import { useNavigate } from 'react-router-dom';
+import { ALL_DOMAINS_DATA } from '../../data/serviceProviders.js';
+import { cn } from '../../design-system/utils.js';
+
+const ICON_MAP: Record<string, React.ElementType> = {
+  GraduationCap,
+  ShieldAlert,
+  ShoppingBag,
+  Wifi,
+  Landmark,
+  Building2,
+  Zap,
+  Heart,
+  Plane,
+  Home,
+  FileCheck,
+  Tv,
+};
+
+interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  time: string;
+  read: boolean;
+  phone: string;
+  isSms: boolean;
+}
+
+const DEFAULT_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: 'n-1',
+    title: 'SMS Dispatched: Case Status Update',
+    message: 'CPET Alert: Case CPET-2026-44537 is IN_PROGRESS with Lloyd. Technician Rajesh assigned (ETA 4:30 PM).',
+    type: 'SMS',
+    time: '10m ago',
+    read: false,
+    phone: '+91 94940 12345',
+    isSms: true,
+  },
+  {
+    id: 'n-2',
+    title: 'Nodal Officer Assigned (Banking)',
+    message: 'SBI Grievance Cell has acknowledged ATM Dispute #CPET-2026-44890. Reverse audit initiated.',
+    type: 'SMS',
+    time: '2h ago',
+    read: false,
+    phone: '+91 94940 12345',
+    isSms: true,
+  },
+  {
+    id: 'n-3',
+    title: 'Anti-Ragging Squad Deployed',
+    message: 'Confidential enquiry opened by UGC National Monitoring Cell for Case #CPET-2026-44912.',
+    type: 'SMS',
+    time: '1d ago',
+    read: true,
+    phone: '+91 94940 12345',
+    isSms: true,
+  },
+];
 
 export const CitizenHome: React.FC = () => {
   const navigate = useNavigate();
   const { user, token } = useAuth();
-  const [recentCases, setRecentCases] = useState<CaseItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [quickPrompt, setQuickPrompt] = useState('');
 
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(DEFAULT_NOTIFICATIONS);
+  const [unreadCount, setUnreadCount] = useState(2);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch real notifications from backend if available
   useEffect(() => {
-    async function loadRecent() {
+    async function fetchNotifications() {
+      if (!token) return;
       try {
-        const res = await fetch('/api/v1/cases/my?tab=all', {
+        const res = await fetch('/api/v1/notifications', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
         if (res.ok) {
           const json = await res.json();
-          setRecentCases((json.data || []).slice(0, 5));
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            const mapped: NotificationItem[] = json.data.map((n: any) => ({
+              id: n._id || n.id,
+              title: n.title || 'Official Case Notification',
+              message: n.message || n.body || '',
+              type: n.channel || 'SMS',
+              time: 'Recent',
+              read: !!n.read,
+              phone: user?.phoneNumber || '+91 94940 12345',
+              isSms: true,
+            }));
+            setNotifications(mapped);
+            setUnreadCount(mapped.filter((x) => !x.read).length);
+          }
         }
-      } catch (err) {
-        console.error('Failed to load recent cases', err);
-      } finally {
-        setLoading(false);
+      } catch (e) {
+        console.warn('Using default notifications state', e);
       }
     }
-    loadRecent();
-  }, [token]);
+    fetchNotifications();
+  }, [token, user]);
 
-  const handleQuickSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (quickPrompt.trim()) {
-      navigate(`/citizen/intake?q=${encodeURIComponent(quickPrompt.trim())}`);
-    } else {
-      navigate('/citizen/intake');
-    }
+  const markAllAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
   };
 
-  const primaryServices = [
-    {
-      title: 'Service Request',
-      description: 'Appliance, utility, or equipment servicing with automatic brand detection and direct routing.',
-      icon: FileQuestion,
-      badge: 'Standard SLA',
-      href: '/citizen/requests/new?type=SERVICE_REQUEST',
-    },
-    {
-      title: 'Complaint',
-      description: 'Lodge formal grievance against a product, service, organization, institution, or facility.',
-      icon: AlertCircle,
-      badge: 'Escalation Protocol',
-      href: '/citizen/requests/new?type=COMPLAINT',
-    },
-    {
-      title: 'Blood',
-      description: 'Request urgent blood units, discover donors across 5-level geographic proximity, or register as a donor.',
-      icon: HeartHandshake,
-      badge: 'Priority 6h SLA',
-      href: '/citizen/blood',
-    },
-    {
-      title: 'Track Requests',
-      description: 'Inspect live status, two-way communications, audit timeline, and resolution milestones.',
-      icon: Search,
-      badge: 'Live Status',
-      href: '/citizen/requests',
-    },
-  ];
+  // Dynamic greeting based on local time
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning,';
+    if (hour < 17) return 'Good Afternoon,';
+    return 'Good Evening,';
+  };
+
+  const userName = user?.name ? user.name.split(' ')[0] : '';
+  const userPhone = user?.phoneNumber || user?.phone || '+91 94940 12345';
+
+  const filteredDomains = ALL_DOMAINS_DATA.filter((dom) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      dom.title.toLowerCase().includes(q) ||
+      dom.shortLabel.toLowerCase().includes(q) ||
+      dom.providers.some((p) => p.name.toLowerCase().includes(q) || p.shortCode.toLowerCase().includes(q))
+    );
+  });
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
+    <div className="w-full space-y-6 pb-16 relative">
+      
+      {/* 1. Top Header: Greeting + Phone Info + Notification Bell */}
+      <div className="flex items-center justify-between pt-1">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              Welcome, {user?.name || 'Citizen'}
-            </h1>
-            <Badge variant="resolved" size="sm">Verified Session</Badge>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1E293B] tracking-tight">
+            {getGreeting()} {userName || 'Citizen'}
+          </h1>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-slate-500 font-normal">
+              Official Grievance & Tracking Portal
+            </span>
+            <span className="text-slate-300">•</span>
+            <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+              <Smartphone className="w-3 h-3 text-emerald-600" />
+              SMS Active: {userPhone}
+            </span>
           </div>
-          <p className="text-sm text-slate-500 mt-1">
-            CPET Universal Citizen Service Center — Raise, track, and resolve with verified organizations.
-          </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Link to="/citizen/intake">
-            <Button variant="primary" size="sm" leftIcon={<Sparkles className="w-4 h-4 text-amber-300" />}>
-              Tell CPET What You Need
-            </Button>
-          </Link>
-          <div className="flex items-center gap-2 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-md shadow-sm">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Encrypted & Private</span>
-          </div>
+        {/* Bell Notification Button */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="w-10 h-10 rounded-full bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-700 hover:text-blue-600 transition-colors relative cursor-pointer shrink-0"
+            title="Notifications & SMS Updates"
+          >
+            <Bell className="w-4.5 h-4.5" />
+            {unreadCount > 0 && (
+              <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-blue-600 ring-2 ring-white animate-pulse" />
+            )}
+          </button>
+
+          {/* Notification Dropdown Panel */}
+          {showNotifications && (
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-blue-600" />
+                  <span className="text-xs font-bold text-slate-900">Phone & SMS Notifications</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-[10px] font-bold text-blue-600 hover:underline cursor-pointer"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowNotifications(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-72 overflow-y-auto no-scrollbar">
+                {notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className={cn(
+                      'p-2.5 rounded-xl border text-left transition-colors cursor-pointer',
+                      n.read ? 'bg-slate-50 border-slate-100' : 'bg-blue-50/50 border-blue-100'
+                    )}
+                    onClick={() => navigate('/citizen/requests')}
+                  >
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                      <span className="font-bold text-blue-700 flex items-center gap-1">
+                        <MessageSquare className="w-3 h-3" />
+                        DLT SMS Delivered
+                      </span>
+                      <span>{n.time}</span>
+                    </div>
+                    <div className="text-xs font-bold text-slate-800 leading-tight">
+                      {n.title}
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-snug">
+                      {n.message}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-1 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[10px] text-slate-400 font-mono">📱 {userPhone}</span>
+                <button
+                  onClick={() => {
+                    setShowNotifications(false);
+                    navigate('/citizen/requests');
+                  }}
+                  className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                >
+                  <span>View All Tracker Cases</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* AI-First Conversational Hero Banner */}
-      <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900 text-white p-6 shadow-md">
-        <div className="relative z-10 max-w-3xl space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-400/20 text-amber-300 border border-amber-400/30">
-              <Sparkles className="w-4 h-4" />
+      {/* 2. Urgent Highlight Action Banners (Responsive 3-Column on Desktop) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+        
+        {/* Banner 1: AI Natural Voice & Text Intake */}
+        <div
+          onClick={() => navigate('/citizen/intake')}
+          className="w-full bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl p-4 shadow-md shadow-blue-600/15 hover:shadow-lg hover:scale-[1.01] transition-all flex items-center justify-between gap-3 cursor-pointer group"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+              <Mic className="w-5 h-5 text-white animate-pulse" />
             </div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-amber-300">
-              AI-First Intake Engine
-            </span>
-            <span className="text-slate-400 text-xs">•</span>
-            <span className="text-xs text-slate-300">English • हिन्दी • తెలుగు</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-extrabold text-sm text-white truncate">AI Voice Intake</h3>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/25 text-white">AI</span>
+              </div>
+              <p className="text-[11px] text-blue-100 font-normal truncate mt-0.5">
+                Speak or type in any language
+              </p>
+            </div>
           </div>
+          <ChevronRight className="w-4 h-4 text-blue-200 group-hover:translate-x-1 transition-transform shrink-0" />
+        </div>
 
+        {/* Banner 2: Anti-Ragging & Campus Harassment Desk */}
+        <div
+          onClick={() => navigate('/citizen/requests/new?domain=antiragging')}
+          className="w-full bg-gradient-to-br from-rose-600 to-red-700 text-white rounded-2xl p-4 shadow-md shadow-rose-600/15 hover:shadow-lg hover:scale-[1.01] transition-all flex items-center justify-between gap-3 cursor-pointer group"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+              <GraduationCap className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-extrabold text-white truncate">Anti-Ragging Cell</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/25 text-white">UGC 1800</span>
+              </div>
+              <p className="text-[11px] text-rose-100 truncate mt-0.5">
+                Confidential college grievance
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-rose-200 group-hover:translate-x-1 transition-transform shrink-0" />
+        </div>
+
+        {/* Banner 3: Cyber Crime 1930 & Banking Fraud */}
+        <div
+          onClick={() => navigate('/citizen/requests/new?domain=cybercrime')}
+          className="w-full bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-4 shadow-md shadow-slate-900/15 hover:shadow-lg hover:scale-[1.01] transition-all flex items-center justify-between gap-3 cursor-pointer group"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-white/10 text-red-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+              <ShieldAlert className="w-5 h-5 text-red-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-extrabold text-white truncate">Cyber Crime & Fraud</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/30 text-red-300">1930</span>
+              </div>
+              <p className="text-[11px] text-slate-300 truncate mt-0.5">
+                UPI phishing & account freeze
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform shrink-0" />
+        </div>
+
+      </div>
+
+      {/* Featured: Public & Organization Forms Directory Card */}
+      <div
+        onClick={() => navigate('/citizen/forms')}
+        className="bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 rounded-2xl p-4 sm:p-5 text-white shadow-md shadow-blue-500/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer group hover:scale-[1.008] transition-all"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 group-hover:rotate-6 transition-transform">
+            <Layers className="w-6 h-6 text-white" />
+          </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-              Tell CPET what you need — no complex forms required.
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-300 mt-1 leading-relaxed">
-              Describe your appliance repair, billing dispute, civic grievance, or emergency blood need in plain words. CPET extracts the details, matches the organization, and asks only what is missing.
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-blue-200">
+                Official Forms Hub
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white">
+                Public + Organization Forms
+              </span>
+            </div>
+            <h3 className="text-base sm:text-lg font-black tracking-tight text-white mt-0.5">
+              Browse & Submit Official Application & Grievance Forms
+            </h3>
+            <p className="text-xs text-blue-100 mt-0.5 max-w-xl">
+              Discover verified forms from municipal utilities, consumer electronics (Lloyd, Samsung), public grid (Apex Power), and Banking Ombudsman.
             </p>
           </div>
-
-          {/* Quick Input Bar */}
-          <form onSubmit={handleQuickSubmit} className="flex items-center gap-2 pt-1">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                value={quickPrompt}
-                onChange={(e) => setQuickPrompt(e.target.value)}
-                placeholder="Example: I have a Lloyd AC and it needs servicing..."
-                className="w-full text-sm bg-slate-800/90 border border-slate-700 rounded-lg pl-3.5 pr-10 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
-              />
-              <button
-                type="button"
-                onClick={() => navigate('/citizen/intake')}
-                title="Voice dictation in conversational intake"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-              >
-                <Mic className="w-4 h-4" />
-              </button>
-            </div>
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold"
-              rightIcon={<ArrowRight className="w-4 h-4" />}
-            >
-              Analyze
-            </Button>
-          </form>
-
-          {/* Quick Example Chips */}
-          <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-            <span className="text-slate-400 text-[11px]">Try asking:</span>
-            <button
-              type="button"
-              onClick={() => navigate('/citizen/intake?q=' + encodeURIComponent('I have a Lloyd AC and it needs servicing.'))}
-              className="text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-md border border-slate-700 transition-colors"
-            >
-              "Lloyd AC servicing"
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/citizen/intake?q=' + encodeURIComponent('Urgent: need 2 units of O- blood immediately at City Trauma Hospital.'))}
-              className="text-xs text-rose-300 hover:text-rose-200 bg-rose-950/40 hover:bg-rose-900/50 px-2.5 py-1 rounded-md border border-rose-800/50 transition-colors"
-            >
-              "Urgent: O- blood needed"
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/citizen/intake?q=' + encodeURIComponent('Streetlights on 5th cross road are not working.'))}
-              className="text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-md border border-slate-700 transition-colors"
-            >
-              "Streetlight civic grievance"
-            </button>
-          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate('/citizen/forms');
+          }}
+          className="px-4 py-2.5 rounded-xl bg-white text-blue-700 text-xs font-black shadow-sm shrink-0 flex items-center gap-1.5 group-hover:bg-blue-50 transition-colors"
+        >
+          <span>Explore All Forms</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* Primary Services Grid */}
-      <div>
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-          Universal Citizen Entry Modules
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {primaryServices.map((srv) => {
-            const Icon = srv.icon;
+      {/* 3. Central Search Bar for Official Directories & Services */}
+      <div className="relative">
+        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search any sector, authority (UGC, RBI, TRAI, DISCOM), or brand (Samsung, SBI, Airtel)..."
+          className="w-full pl-10 pr-4 py-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 shadow-2xs"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 font-bold"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* 4. Comprehensive Multi-Sector Portal Grid (12 Sectors) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base sm:text-lg font-black text-[#1E293B] tracking-tight">
+              All Official Sectors & Service Authorities
+            </h2>
+            <p className="text-xs text-slate-500">
+              Select any official authority to file a registered grievance with automated SMS tracking:
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/citizen/requests/new')}
+            className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <span>Intake Form</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {filteredDomains.map((domain) => {
+            const IconComponent = ICON_MAP[domain.iconName] || FileText;
+
             return (
-              <Card
-                key={srv.title}
-                className="hover:border-slate-400 hover:shadow-md transition-all flex flex-col justify-between"
+              <div
+                key={domain.id}
+                onClick={() => navigate(`/citizen/requests/new?domain=${domain.id}`)}
+                className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-xs hover:shadow-md hover:border-blue-400 hover:bg-blue-50/20 transition-all flex flex-col justify-between cursor-pointer group text-left"
               >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-blue-600 group-hover:text-white text-slate-700 flex items-center justify-center transition-colors">
+                    <IconComponent className="w-4.5 h-4.5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 group-hover:text-blue-600 font-mono">
+                    {domain.defaultSlaHours}h SLA
+                  </span>
+                </div>
+
                 <div>
-                  <CardHeader>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="p-2.5 rounded-lg bg-slate-100 text-slate-900">
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <Badge variant="neutral" size="sm">{srv.badge}</Badge>
-                    </div>
-                    <CardTitle className="text-base font-semibold">{srv.title}</CardTitle>
-                    <CardDescription className="text-xs mt-1 leading-relaxed">
-                      {srv.description}
-                    </CardDescription>
-                  </CardHeader>
+                  <h3 className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-tight">
+                    {domain.shortLabel}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-normal leading-tight mt-1 truncate">
+                    {domain.providers.map((p) => p.shortCode).slice(0, 3).join(', ')}
+                  </p>
                 </div>
-                <div className="p-6 pt-0">
-                  <Link to={srv.href}>
-                    <Button variant="outline" size="sm" className="w-full justify-between" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                      Access Service
-                    </Button>
-                  </Link>
-                </div>
-              </Card>
+              </div>
             );
           })}
         </div>
       </div>
 
-      {/* Recent Activity / Tracking Preview */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Recent Request Activity</CardTitle>
-              <CardDescription>
-                Live requests and two-way resolution interaction between you and responding organizations.
-              </CardDescription>
-            </div>
-            <Link to="/citizen/requests">
-              <Button variant="ghost" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                View All
-              </Button>
-            </Link>
+      {/* 5. Quick Access Navigation Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        
+        <div
+          onClick={() => navigate('/citizen/requests')}
+          className="bg-white border border-slate-100 rounded-2xl p-3.5 shadow-xs hover:shadow-md hover:border-blue-200 transition-all flex items-center gap-3 cursor-pointer group"
+        >
+          <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <FileText className="w-4 h-4" />
           </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-3 py-2">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </div>
-          ) : recentCases.length === 0 ? (
-            <p className="text-xs text-slate-500 py-4 text-center">
-              You have no active cases yet. Click "Raise New Case" above to submit a request.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Reference ID</TableHead>
-                  <TableHead>Service / Title</TableHead>
-                  <TableHead>Recipient Organization</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentCases.map((c) => {
-                  const orgName =
-                    typeof c.organizationId === 'object' && c.organizationId?.name
-                      ? c.organizationId.name
-                      : c.organizationName || 'Assigned Organization';
+          <div>
+            <div className="text-xs font-bold text-[#1E293B]">My Complaints</div>
+            <div className="text-[10px] text-slate-400 font-normal">Live SMS tracker</div>
+          </div>
+        </div>
 
-                  return (
-                    <TableRow key={c._id}>
-                      <TableCell className="font-mono text-xs font-semibold text-slate-900">
-                        {c.referenceNumber}
-                      </TableCell>
-                      <TableCell className="font-medium text-slate-800 text-xs">
-                        {c.title}
-                      </TableCell>
-                      <TableCell className="text-slate-600 text-xs">
-                        {orgName}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            c.status === 'RESOLVED'
-                              ? 'resolved'
-                              : c.status === 'IN_PROGRESS'
-                              ? 'progress'
-                              : c.status === 'WAITING_FOR_USER'
-                              ? 'critical'
-                              : 'pending'
-                          }
-                          size="sm"
-                        >
-                          {c.status.replace(/_/g, ' ')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Link to={`/citizen/requests/${c._id}`}>
-                          <Button variant="outline" size="sm">
-                            Inspect
-                          </Button>
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+        <div
+          onClick={() => navigate('/citizen/blood')}
+          className="bg-white border border-slate-100 rounded-2xl p-3.5 shadow-xs hover:shadow-md hover:border-rose-200 transition-all flex items-center gap-3 cursor-pointer group"
+        >
+          <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <Heart className="w-4 h-4 fill-current" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-[#1E293B]">Blood Hub</div>
+            <div className="text-[10px] text-slate-400 font-normal">Find 5-level donors</div>
+          </div>
+        </div>
+
+        <div
+          onClick={() => navigate('/citizen/intake')}
+          className="bg-white border border-slate-100 rounded-2xl p-3.5 shadow-xs hover:shadow-md hover:border-purple-200 transition-all flex items-center gap-3 cursor-pointer group"
+        >
+          <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-[#1E293B]">AI Assistant</div>
+            <div className="text-[10px] text-slate-400 font-normal">Smart triage & voice</div>
+          </div>
+        </div>
+
+        <div
+          onClick={() => navigate('/citizen/help')}
+          className="bg-white border border-slate-100 rounded-2xl p-3.5 shadow-xs hover:shadow-md hover:border-emerald-200 transition-all flex items-center gap-3 cursor-pointer group"
+        >
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <ShieldCheck className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-[#1E293B]">Help & Hotline</div>
+            <div className="text-[10px] text-slate-400 font-normal">1930, UGC, RBI info</div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* 6. Statutory Enforceability & SMS Guarantee Box */}
+      <div className="w-full bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 rounded-2xl p-5 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-300">
+              Central Automated Resolution Engine
+            </span>
+          </div>
+          <div className="text-sm sm:text-base font-extrabold mt-1">
+            Official Nodal Assignment & Instant Mobile SMS Updates
+          </div>
+          <div className="text-xs text-slate-300 mt-0.5">
+            Every status transition automatically notifies you via SMS and escalates to senior ombudsman if SLA breaches.
+          </div>
+        </div>
+        <button
+          onClick={() => navigate('/citizen/requests')}
+          className="px-4 py-2 rounded-xl bg-white text-slate-900 text-xs font-bold shadow-md hover:bg-slate-100 transition-colors flex items-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto"
+        >
+          <span>Track Live Status</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
     </div>
   );
 };

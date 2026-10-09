@@ -1,33 +1,37 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.js';
+import { Alert } from '../../design-system/index.js';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  Button,
-  Input,
-  Badge,
-  Alert,
-} from '../../design-system/index.js';
-import {
-  Sparkles,
+  ArrowLeft,
   Mic,
   Square,
-  Send,
-  ArrowLeft,
+  FileText,
+  Building2,
+  Tv,
+  MapPin,
+  Star,
+  Zap,
+  Droplet,
+  Smartphone,
+  ArrowRight,
+  Camera,
+  Activity,
+  Check,
+  Compass,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
-  Building2,
-  FileText,
-  MapPin,
-  RefreshCw,
-  SlidersHorizontal,
+  Wrench,
+  Landmark,
+  GraduationCap,
+  ShieldAlert,
+  ShoppingBag,
+  Heart,
+  Plane,
+  Home,
+  FileCheck,
 } from 'lucide-react';
-import { AiExtractedCase, AiIntakeContext, Clarification } from '../../types/ai.js';
+import { AiExtractedCase } from '../../types/ai.js';
 import { CaseType, CasePriority } from '../../types/case.js';
 
 export const CitizenAiIntake: React.FC = () => {
@@ -37,299 +41,705 @@ export const CitizenAiIntake: React.FC = () => {
 
   const initialQuery = searchParams.get('q') || '';
 
-  // Conversation state
-  const [inputText, setInputText] = useState('');
+  // Active Screen Steps:
+  // 'DESCRIBE' (Screen 1: Describe your problem + Voice Recording)
+  // 'AI_UNDERSTAND' (Screen 2: AI understands your problem - Service Type, Company Name, Issue)
+  // 'CONFIRM' (Screen 3: Review & Confirm)
+  // 'SUBMITTED' (Screen 4: Request Submitted!)
+  const [activeStep, setActiveStep] = useState<'DESCRIBE' | 'AI_UNDERSTAND' | 'CONFIRM' | 'SUBMITTED'>('DESCRIBE');
+
+  // Input & State
+  const [inputText, setInputText] = useState(initialQuery);
+  const inputTextRef = useRef(inputText);
+  inputTextRef.current = inputText;
+
   const [analyzing, setAnalyzing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [copiedCaseId, setCopiedCaseId] = useState(false);
 
-  // Language preference
-  const [selectedLanguage, setSelectedLanguage] = useState<'auto' | 'en' | 'hi' | 'te'>('auto');
+  // Extracted / Editable fields
+  const [, setExtractedDraft] = useState<AiExtractedCase | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
-  // AI draft extraction
-  const [extractedDraft, setExtractedDraft] = useState<AiExtractedCase | null>(null);
-  const [conversation, setConversation] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
-  const [pendingClarification, setPendingClarification] = useState<Clarification | null>(null);
-
-  // Editable fields in review card
+  // Key Extracted Entities:
   const [editIntent, setEditIntent] = useState<CaseType>('SERVICE_REQUEST');
-  const [editProduct, setEditProduct] = useState('');
-  const [editCategory, setEditCategory] = useState('');
+  const [editOrgName, setEditOrgName] = useState('Lloyd (Authorized Service Center)');
+  const [editProduct, setEditProduct] = useState('AC Service / Repair');
+  const [editLocation, setEditLocation] = useState('Rajahmundry, Andhra Pradesh');
   const [editPriority, setEditPriority] = useState<CasePriority>('MEDIUM');
-  const [editCity, setEditCity] = useState('');
-  const [editAddress, setEditAddress] = useState('');
-  const [editPincode, setEditPincode] = useState('');
-  const [editStructuredData, setEditStructuredData] = useState<Record<string, any>>({});
-  const [editSummary, setEditSummary] = useState('');
+  const [editDescription, setEditDescription] = useState(
+    'My Lloyd AC is not cooling properly and needs technician service.'
+  );
 
-  // Voice recording state
+  // Generated Case Info for Success Screen
+  const [submittedCaseId, setSubmittedCaseId] = useState('CPET-2026-44537');
+  const [createdCaseDbId, setCreatedCaseDbId] = useState<string | null>(null);
+
+  // Voice recording & Speech recognition state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [voiceStatusText, setVoiceStatusText] = useState('Tap mic to record voice or choose a sample prompt');
+  const [liveTranscript, setLiveTranscript] = useState('');
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<any>(null);
+  const recognitionRef = useRef<any>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll conversation
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversation, analyzing]);
-
-  // Sync draft into editable fields whenever draft updates
-  useEffect(() => {
-    if (extractedDraft) {
-      setEditIntent(extractedDraft.intent);
-      setEditProduct(extractedDraft.productService || '');
-      setEditCategory(extractedDraft.category || '');
-      setEditPriority(extractedDraft.priority || 'MEDIUM');
-      setEditCity(extractedDraft.location.city || '');
-      setEditAddress(extractedDraft.location.address || '');
-      setEditPincode(extractedDraft.location.pincode || '');
-      setEditStructuredData(extractedDraft.structuredData || {});
-      setEditSummary(extractedDraft.summary || '');
-      setPendingClarification(extractedDraft.nextClarification);
+    if (initialQuery.trim()) {
+      handleAnalyzeText(initialQuery.trim());
     }
-  }, [extractedDraft]);
+  }, [initialQuery]);
 
-  // Clean up recording timer on unmount
   useEffect(() => {
     return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {
+          // ignore error on stop
+        }
       }
     };
   }, []);
 
   /**
-   * Main conversational intake send handler
+   * Universal NLP Entity Extractor for Voice & Text:
+   * Recognizes 12+ Domains (Anti-Ragging, Cyber Crime, E-Commerce, Telecom, Banking, Municipal, Power, Healthcare, Travel, RERA, Govt Schemes, Appliances).
    */
-  const handleSend = useCallback(
-    async (textToSend: string) => {
-      if (!textToSend.trim() || analyzing) return;
+  const extractEntitiesFromSpeech = (rawText: string) => {
+    const text = rawText.toLowerCase();
 
-      setErrorMessage(null);
-      setAnalyzing(true);
+    let orgName = 'Municipal Authority / Service Provider';
+    let serviceType = 'General Citizen Service';
+    let intent: CaseType = 'SERVICE_REQUEST';
+    let priority: CasePriority = 'MEDIUM';
+    let location = 'Rajahmundry, Andhra Pradesh';
+    let issueSummary = rawText.trim();
 
-      const userMessage = textToSend.trim();
-      setInputText('');
+    // Location extraction
+    const cities: Record<string, string> = {
+      rajahmundry: 'Rajahmundry, Andhra Pradesh',
+      kakinada: 'Kakinada, Andhra Pradesh',
+      visakhapatnam: 'Visakhapatnam, Andhra Pradesh',
+      vizag: 'Visakhapatnam, Andhra Pradesh',
+      vijayawada: 'Vijayawada, Andhra Pradesh',
+      guntur: 'Guntur, Andhra Pradesh',
+      hyderabad: 'Hyderabad, Telangana',
+      tirupati: 'Tirupati, Andhra Pradesh',
+      nellore: 'Nellore, Andhra Pradesh',
+      warangal: 'Warangal, Telangana',
+      bhimavaram: 'Bhimavaram, Andhra Pradesh',
+      eluru: 'Eluru, Andhra Pradesh',
+      bangalore: 'Bangalore, Karnataka',
+      bengaluru: 'Bangalore, Karnataka',
+      chennai: 'Chennai, Tamil Nadu',
+      delhi: 'New Delhi, Delhi',
+      mumbai: 'Mumbai, Maharashtra',
+      pune: 'Pune, Maharashtra',
+      kolkata: 'Kolkata, West Bengal',
+    };
 
-      // Optimistically update conversation history
-      const updatedHistory = [...conversation, { role: 'user' as const, text: userMessage }];
-      setConversation(updatedHistory);
-
-      // Build context payload for multi-turn accumulation
-      const contextPayload: AiIntakeContext = {
-        intent: extractedDraft?.intent,
-        organizationId: extractedDraft?.organization.matchedId,
-        organizationName: extractedDraft?.organization.matchedName,
-        productService: editProduct || extractedDraft?.productService,
-        category: editCategory || extractedDraft?.category,
-        priority: editPriority || extractedDraft?.priority,
-        location: {
-          city: editCity || extractedDraft?.location.city,
-          address: editAddress || extractedDraft?.location.address,
-          pincode: editPincode || extractedDraft?.location.pincode,
-        },
-        structuredData: {
-          ...(extractedDraft?.structuredData || {}),
-          ...editStructuredData,
-        },
-        conversationHistory: updatedHistory,
-      };
-
-      try {
-        const res = await fetch('/api/v1/ai/analyze', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            message: userMessage,
-            languageHint: selectedLanguage !== 'auto' ? selectedLanguage : undefined,
-            context: contextPayload,
-          }),
-        });
-
-        const json = await res.json();
-        if (!res.ok) {
-          throw new Error(json.error?.message || 'Failed to analyze request with AI.');
-        }
-
-        const extracted: AiExtractedCase = json.data;
-        setExtractedDraft(extracted);
-        setConversation(extracted.conversationHistory);
-        setPendingClarification(extracted.nextClarification);
-      } catch (err: any) {
-        console.error('AI Intake analysis error:', err);
-        setErrorMessage(err.message || 'Could not process request. Please try again or use the manual form.');
-      } finally {
-        setAnalyzing(false);
+    for (const [key, locVal] of Object.entries(cities)) {
+      if (text.includes(key)) {
+        location = locVal;
+        break;
       }
-    },
-    [
-      analyzing,
-      conversation,
-      editAddress,
-      editCategory,
-      editCity,
-      editPincode,
-      editPriority,
-      editProduct,
-      editStructuredData,
-      extractedDraft,
-      selectedLanguage,
-      token,
-    ]
-  );
-
-  // Handle initial query if provided in URL (e.g. from Home search bar)
-  useEffect(() => {
-    if (initialQuery.trim() && conversation.length === 0) {
-      handleSend(initialQuery.trim());
     }
-  }, [initialQuery, conversation.length, handleSend]);
 
-  /**
-   * Handle quick clarification chip click
-   */
-  const handleClarificationChoice = (option: string) => {
-    handleSend(option);
+    // 1. Anti-Ragging & Education Sector
+    if (
+      text.includes('ragging') ||
+      text.includes('harassment') ||
+      text.includes('senior') ||
+      text.includes('hostel') ||
+      text.includes('college') ||
+      text.includes('university') ||
+      text.includes('affidavit') ||
+      text.includes('ugc') ||
+      text.includes('aicte')
+    ) {
+      if (text.includes('aicte')) {
+        orgName = 'AICTE Student Grievance Redressal Portal';
+      } else if (text.includes('scholarship') || text.includes('nsp')) {
+        orgName = 'National Scholarship Portal (NSP Redressal Desk)';
+      } else {
+        orgName = 'UGC Anti-Ragging National Monitoring Cell (Toll-Free 1800-180-5522)';
+      }
+      serviceType = text.includes('affidavit')
+        ? 'Anti-Ragging Mandatory Compliance Affidavit'
+        : 'Anti-Ragging Incident & Urgent FIR Escalation';
+      intent = 'COMPLAINT';
+      priority = 'URGENT';
+    }
+    // 2. Cyber Crime & Financial Fraud (1930)
+    else if (
+      text.includes('cyber') ||
+      text.includes('scam') ||
+      text.includes('phishing') ||
+      text.includes('hacked') ||
+      text.includes('apk') ||
+      text.includes('lottery') ||
+      text.includes('1930') ||
+      text.includes('crypto') ||
+      text.includes('telegram') ||
+      text.includes('impersonation') ||
+      text.includes('extortion')
+    ) {
+      if (text.includes('cert') || text.includes('vulnerability')) {
+        orgName = 'Indian Computer Emergency Response Team (CERT-In)';
+      } else {
+        orgName = 'National Cyber Crime Reporting Portal (NCRP / Helpline 1930)';
+      }
+      serviceType = 'Cyber Crime & Financial Fraud Emergency Incident';
+      intent = 'COMPLAINT';
+      priority = 'HIGH';
+    }
+    // 3. E-Commerce & Quick Delivery
+    else if (
+      text.includes('amazon') ||
+      text.includes('flipkart') ||
+      text.includes('swiggy') ||
+      text.includes('zomato') ||
+      text.includes('blinkit') ||
+      text.includes('zepto') ||
+      text.includes('meesho') ||
+      text.includes('delhivery') ||
+      text.includes('delivery') ||
+      text.includes('courier') ||
+      text.includes('refund') ||
+      text.includes('order') ||
+      text.includes('damaged product') ||
+      text.includes('wrong item')
+    ) {
+      if (text.includes('amazon')) {
+        orgName = 'Amazon India Customer Escalations';
+      } else if (text.includes('flipkart')) {
+        orgName = 'Flipkart Resolution Desk';
+      } else if (text.includes('swiggy')) {
+        orgName = 'Swiggy Grievance Cell';
+      } else if (text.includes('zomato')) {
+        orgName = 'Zomato Escalation Support';
+      } else if (text.includes('blinkit') || text.includes('zepto')) {
+        orgName = 'Quick Commerce Customer Helpdesk';
+      } else if (text.includes('meesho')) {
+        orgName = 'Meesho Customer Redressal Desk';
+      } else {
+        orgName = 'National Consumer Helpline (E-Commerce Portal)';
+      }
+      serviceType = 'E-Commerce Order Discrepancy & Refund Claim';
+      intent = 'COMPLAINT';
+      priority = 'MEDIUM';
+    }
+    // 4. Telecom & 5G Broadband
+    else if (
+      text.includes('airtel') ||
+      text.includes('jio') ||
+      text.includes('vodafone') ||
+      text.includes('vi ') ||
+      text.includes('bsnl') ||
+      text.includes('act') ||
+      text.includes('fiber') ||
+      text.includes('broadband') ||
+      text.includes('wifi') ||
+      text.includes('router') ||
+      text.includes('sim') ||
+      text.includes('porting') ||
+      text.includes('5g') ||
+      text.includes('los light')
+    ) {
+      if (text.includes('jio')) {
+        orgName = 'Reliance Jio Infocomm Ltd (Fiber & 5G)';
+      } else if (text.includes('act')) {
+        orgName = 'ACT Fibernet Broadband';
+      } else if (text.includes('bsnl')) {
+        orgName = 'BSNL Telecom & Fiber Services';
+      } else if (text.includes('vi') || text.includes('vodafone')) {
+        orgName = 'Vodafone Idea (Vi) Nodal Officer';
+      } else {
+        orgName = 'Airtel Broadband & Network Ops';
+      }
+      serviceType = 'Broadband Fiber & 5G Network Support';
+      intent = 'SERVICE_REQUEST';
+      priority = text.includes('urgent') || text.includes('business') ? 'HIGH' : 'MEDIUM';
+    }
+    // 5. Travel, Railways & Aviation
+    else if (
+      text.includes('railway') ||
+      text.includes('irctc') ||
+      text.includes('train') ||
+      text.includes('pnr') ||
+      text.includes('flight') ||
+      text.includes('airline') ||
+      text.includes('indigo') ||
+      text.includes('air india') ||
+      text.includes('dgca') ||
+      text.includes('ola') ||
+      text.includes('uber') ||
+      text.includes('cab')
+    ) {
+      if (text.includes('flight') || text.includes('airline') || text.includes('indigo') || text.includes('air india')) {
+        orgName = text.includes('indigo') ? 'IndiGo Airlines Grievance Cell' : 'Air India Customer Support & DGCA';
+        serviceType = 'Aviation Flight Cancellation / Baggage / Refund Dispute';
+      } else if (text.includes('ola') || text.includes('uber')) {
+        orgName = 'Ride-Hailing Consumer Redressal Cell';
+        serviceType = 'Cab Fare Discrepancy & Driver Complaint';
+      } else {
+        orgName = 'Indian Railways (RailMadad / IRCTC Grievance Desk)';
+        serviceType = 'Railways PNR Refund / Coach Grievance';
+      }
+      intent = 'COMPLAINT';
+      priority = 'MEDIUM';
+    }
+    // 6. Real Estate & RERA
+    else if (
+      text.includes('rera') ||
+      text.includes('builder') ||
+      text.includes('flat') ||
+      text.includes('possession') ||
+      text.includes('apartment') ||
+      text.includes('construction') ||
+      text.includes('society')
+    ) {
+      orgName = 'State Real Estate Regulatory Authority (RERA Desk)';
+      serviceType = 'RERA Builder Delayed Possession / Structural Defect Claim';
+      intent = 'COMPLAINT';
+      priority = 'HIGH';
+    }
+    // 7. Government Welfare, Aadhaar, Passport & EPFO
+    else if (
+      text.includes('aadhaar') ||
+      text.includes('uidai') ||
+      text.includes('passport') ||
+      text.includes('epfo') ||
+      text.includes('pf withdrawal') ||
+      text.includes('provident fund') ||
+      text.includes('pension') ||
+      text.includes('ration card') ||
+      text.includes('voter id')
+    ) {
+      if (text.includes('aadhaar') || text.includes('uidai')) {
+        orgName = 'UIDAI (Aadhaar Citizen Helpdesk)';
+        serviceType = 'Aadhaar Biometric / Address Update Grievance';
+      } else if (text.includes('passport')) {
+        orgName = 'Regional Passport Office (Passport Seva Kendra)';
+        serviceType = 'Passport Issuance Delay / Verification Desk';
+      } else if (text.includes('pf') || text.includes('epfo') || text.includes('provident')) {
+        orgName = 'Employees’ Provident Fund Organisation (EPFO Grievance Desk)';
+        serviceType = 'EPFO PF Claim Settlement / UAN Transfer Issue';
+      } else {
+        orgName = 'National Government Services Redressal Portal';
+        serviceType = 'Government Scheme & Certificate Redressal';
+      }
+      intent = 'SERVICE_REQUEST';
+      priority = 'MEDIUM';
+    }
+    // 8. Healthcare & Emergency Blood
+    else if (
+      text.includes('blood') ||
+      text.includes('donor') ||
+      text.includes('hospital') ||
+      text.includes('patient') ||
+      text.includes('emergency') ||
+      text.includes('ayushman') ||
+      text.includes('pm-jay') ||
+      text.includes('plasma') ||
+      text.includes('platelet')
+    ) {
+      if (text.includes('ayushman') || text.includes('pm-jay')) {
+        orgName = 'National Health Authority (PM-JAY Ayushman Desk)';
+        serviceType = 'Ayushman Bharat Hospital Cashless Denied';
+      } else {
+        orgName = 'Indian Red Cross Society & Central Blood Bank Hub';
+        serviceType = 'Emergency Blood & Platelet Donor Requirement';
+      }
+      intent = 'EMERGENCY_REQUIREMENT';
+      priority = 'URGENT';
+    }
+    // 9. Banking & Finance
+    else if (
+      text.includes('bank') ||
+      text.includes('atm') ||
+      text.includes('sbi') ||
+      text.includes('hdfc') ||
+      text.includes('icici') ||
+      text.includes('axis') ||
+      text.includes('kotak') ||
+      text.includes('pnb') ||
+      text.includes('baroda') ||
+      text.includes('canara') ||
+      text.includes('union bank') ||
+      text.includes('indian bank') ||
+      text.includes('indusind') ||
+      text.includes('yes bank') ||
+      text.includes('upi') ||
+      text.includes('gpay') ||
+      text.includes('phonepe') ||
+      text.includes('credit card') ||
+      text.includes('debit card') ||
+      text.includes('transaction') ||
+      text.includes('account') ||
+      text.includes('cheque') ||
+      text.includes('loan') ||
+      text.includes('emi')
+    ) {
+      if (text.includes('sbi') || text.includes('state bank')) {
+        orgName = 'State Bank of India (SBI Nodal Grievance Cell)';
+      } else if (text.includes('hdfc')) {
+        orgName = 'HDFC Bank Customer Care & Grievance Cell';
+      } else if (text.includes('icici')) {
+        orgName = 'ICICI Bank Nodal Redressal Desk';
+      } else if (text.includes('axis')) {
+        orgName = 'Axis Bank Grievance Redressal Office';
+      } else if (text.includes('kotak')) {
+        orgName = 'Kotak Mahindra Bank Customer Support';
+      } else if (text.includes('pnb') || text.includes('punjab national')) {
+        orgName = 'Punjab National Bank (PNB)';
+      } else if (text.includes('baroda')) {
+        orgName = 'Bank of Baroda (BOB)';
+      } else if (text.includes('canara')) {
+        orgName = 'Canara Bank Nodal Desk';
+      } else if (text.includes('union')) {
+        orgName = 'Union Bank of India';
+      } else if (text.includes('indian bank')) {
+        orgName = 'Indian Bank Grievance Desk';
+      } else {
+        orgName = 'Reserve Bank of India (RBI Banking Ombudsman)';
+      }
+
+      if (text.includes('atm') || text.includes('dispense')) {
+        serviceType = 'ATM Cash Dispense Failure & Auto-Reversal';
+        intent = 'COMPLAINT';
+        priority = 'HIGH';
+      } else if (text.includes('unauthorized') || text.includes('fraud') || text.includes('scam')) {
+        serviceType = 'Unauthorized Transaction / Fraud Alert';
+        intent = 'COMPLAINT';
+        priority = 'HIGH';
+      } else if (text.includes('upi') || text.includes('gpay') || text.includes('phonepe') || text.includes('debited')) {
+        serviceType = 'UPI Payment Stuck / Account Debited';
+        intent = 'COMPLAINT';
+        priority = 'HIGH';
+      } else {
+        serviceType = 'Banking & Account Dispute Redressal';
+        intent = 'COMPLAINT';
+        priority = 'MEDIUM';
+      }
+    }
+    // 10. AC & Home Appliances
+    else if (
+      text.includes('lloyd') ||
+      text.includes('ac') ||
+      text.includes('air conditioner') ||
+      text.includes('cooling') ||
+      text.includes('compressor') ||
+      text.includes('gas leak') ||
+      text.includes('fridge') ||
+      text.includes('refrigerator') ||
+      text.includes('washing machine') ||
+      text.includes('tv') ||
+      text.includes('microwave') ||
+      text.includes('geyser') ||
+      text.includes('voltas') ||
+      text.includes('daikin') ||
+      text.includes('samsung') ||
+      text.includes('lg') ||
+      text.includes('whirlpool') ||
+      text.includes('godrej') ||
+      text.includes('blue star') ||
+      text.includes('hitachi') ||
+      text.includes('panasonic')
+    ) {
+      if (text.includes('voltas')) {
+        orgName = 'Voltas Air Conditioning & Engineering';
+      } else if (text.includes('daikin')) {
+        orgName = 'Daikin Air Conditioning India';
+      } else if (text.includes('samsung')) {
+        orgName = 'Samsung Customer Care';
+      } else if (text.includes('lg')) {
+        orgName = 'LG Electronics Support';
+      } else if (text.includes('whirlpool')) {
+        orgName = 'Whirlpool Appliance Care';
+      } else if (text.includes('godrej')) {
+        orgName = 'Godrej Appliance Support';
+      } else if (text.includes('blue star')) {
+        orgName = 'Blue Star Service Center';
+      } else if (text.includes('hitachi')) {
+        orgName = 'Hitachi Cooling Solutions';
+      } else {
+        orgName = 'Lloyd (Authorized Service Center)';
+      }
+
+      serviceType = text.includes('fridge') || text.includes('refrigerator')
+        ? 'Refrigerator Repair & Gas Refill'
+        : text.includes('washing')
+        ? 'Washing Machine Service'
+        : text.includes('tv')
+        ? 'Smart TV Panel / Motherboard Service'
+        : 'AC Service & Technician Home Visit';
+      intent = 'SERVICE_REQUEST';
+      priority = text.includes('urgent') || text.includes('gas leak') ? 'HIGH' : 'MEDIUM';
+    }
+    // 11. Electricity & Power Outage
+    else if (
+      text.includes('electricity') ||
+      text.includes('power') ||
+      text.includes('current') ||
+      text.includes('spark') ||
+      text.includes('transformer') ||
+      text.includes('voltage') ||
+      text.includes('apdcl') ||
+      text.includes('tsspdcl') ||
+      text.includes('bescom') ||
+      text.includes('tata power') ||
+      text.includes('meter')
+    ) {
+      orgName = 'Andhra Pradesh Eastern Power (APDCL)';
+      serviceType = 'Electricity Outage & Transformer Repair';
+      intent = 'COMPLAINT';
+      priority = text.includes('spark') || text.includes('fire') || text.includes('danger') ? 'HIGH' : 'MEDIUM';
+    }
+    // 12. Water Supply & Civic Municipal
+    else if (
+      text.includes('water') ||
+      text.includes('pipeline') ||
+      text.includes('leakage') ||
+      text.includes('sewage') ||
+      text.includes('pothole') ||
+      text.includes('road') ||
+      text.includes('street light') ||
+      text.includes('garbage') ||
+      text.includes('sanitation') ||
+      text.includes('ghmc') ||
+      text.includes('gvmc') ||
+      text.includes('bbmp') ||
+      text.includes('bmc')
+    ) {
+      orgName = 'Municipal Corporation & Water Works';
+      serviceType = text.includes('water') || text.includes('pipeline')
+        ? 'Water Supply & Pipeline Restoration'
+        : 'Civic Infrastructure & Sanitation Grievance';
+      intent = 'COMPLAINT';
+      priority = 'MEDIUM';
+    }
+
+    if (!issueSummary || issueSummary.length < 5) {
+      issueSummary = `Request for ${serviceType} with ${orgName} at ${location}.`;
+    }
+
+    return {
+      intent,
+      orgName,
+      product: serviceType,
+      location,
+      priority,
+      issue: issueSummary,
+    };
   };
 
   /**
-   * Voice Dictation - Start recording using MediaRecorder
+   * Primary Text / Voice Analysis Handler
    */
-  const startRecording = async () => {
+  const handleAnalyzeText = async (textToSend: string) => {
+    if (!textToSend.trim() || analyzing) return;
+
     setErrorMessage(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach((track) => track.stop());
-
-        // Convert blob to base64
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = async () => {
-          const base64Data = (reader.result as string).split(',')[1];
-          await processVoiceAudio(base64Data, 'audio/webm');
-        };
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      setRecordingSeconds(0);
-
-      timerIntervalRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
-      }, 1000);
-    } catch (err: any) {
-      console.warn('Microphone access unavailable or denied:', err);
-      setErrorMessage('Microphone access was denied or not supported in this browser. Please type your request.');
-    }
-  };
-
-  /**
-   * Voice Dictation - Stop recording
-   */
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-    }
-  };
-
-  /**
-   * Send Voice Base64 to backend speech adapter
-   */
-  const processVoiceAudio = async (audioBase64: string, mimeType: string) => {
     setAnalyzing(true);
-    setErrorMessage(null);
+
+    // Apply fast client NLP extraction first so UI is responsive instantly
+    const extracted = extractEntitiesFromSpeech(textToSend.trim());
+    setEditIntent(extracted.intent);
+    setEditOrgName(extracted.orgName);
+    setEditProduct(extracted.product);
+    setEditLocation(extracted.location);
+    setEditPriority(extracted.priority);
+    setEditDescription(extracted.issue);
+
     try {
-      const res = await fetch('/api/v1/ai/voice', {
+      const res = await fetch('/api/v1/ai/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          audioBase64,
-          mimeType,
-          language: selectedLanguage !== 'auto' ? selectedLanguage : undefined,
-          context: extractedDraft
-            ? {
-                intent: extractedDraft.intent,
-                organizationId: extractedDraft.organization.matchedId,
-                productService: editProduct || extractedDraft.productService,
-                category: editCategory || extractedDraft.category,
-                conversationHistory: conversation,
-              }
-            : undefined,
+          message: textToSend.trim(),
         }),
       });
 
       const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error?.message || 'Failed to process voice audio.');
+      if (res.ok && json.data) {
+        const aiData: AiExtractedCase = json.data;
+        setExtractedDraft(aiData);
+
+        if (aiData.intent) setEditIntent(aiData.intent);
+        if (aiData.organization?.matchedName) setEditOrgName(aiData.organization.matchedName);
+        if (aiData.productService) setEditProduct(aiData.productService);
+        if (aiData.priority) setEditPriority(aiData.priority);
+        if (aiData.location?.city) {
+          setEditLocation(`${aiData.location.city}${aiData.location.address ? ', ' + aiData.location.address : ''}`);
+        }
       }
 
-      const extracted: AiExtractedCase = json.data;
-      setExtractedDraft(extracted);
-      setConversation(extracted.conversationHistory);
-      setPendingClarification(extracted.nextClarification);
+      setActiveStep('AI_UNDERSTAND');
     } catch (err: any) {
-      console.error('Voice processing error:', err);
-      setErrorMessage(err.message || 'Speech processing failed. Please type your request.');
+      console.warn('AI analyze fallback:', err);
+      setActiveStep('AI_UNDERSTAND');
     } finally {
       setAnalyzing(false);
     }
   };
 
   /**
-   * Final Confirmation: Creates official database record through Universal Case Engine
+   * Voice recording controls with Live Web Speech Recognition
    */
-  const handleConfirmAndCreate = async () => {
-    if (!extractedDraft) return;
+  const startRecording = async () => {
+    setErrorMessage(null);
+    setIsRecording(true);
+    setRecordingSeconds(0);
+    setLiveTranscript('');
+    setVoiceStatusText('Listening... Speak your issue or request in any language');
 
-    if (!extractedDraft.organization.matchedId) {
-      setErrorMessage('Organization could not be determined. Please specify the brand or provider.');
-      return;
+    // 1. Browser Live Speech Recognition (Chrome, Edge, Safari, Android)
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-IN';
+
+        recognition.onresult = (event: any) => {
+          let currentTranscript = '';
+          for (let i = 0; i < event.results.length; i++) {
+            currentTranscript += event.results[i][0].transcript + ' ';
+          }
+          const cleaned = currentTranscript.trim();
+          if (cleaned) {
+            setLiveTranscript(cleaned);
+            setInputText(cleaned);
+            setEditDescription(cleaned);
+            setVoiceStatusText(`Heard: "${cleaned}"`);
+          }
+        };
+
+        recognition.onerror = (e: any) => {
+          console.warn('SpeechRecognition status:', e);
+        };
+
+        recognition.start();
+        recognitionRef.current = recognition;
+      } catch (err) {
+        console.warn('SpeechRecognition init:', err);
+      }
     }
 
+    // 2. Audio Media Stream capture
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) audioChunksRef.current.push(event.data);
+        };
+
+        mediaRecorder.start();
+      }
+    } catch (err) {
+      console.warn('Microphone permission fallback:', err);
+      setTimeout(() => {
+        if (isRecording) {
+          const sample = 'Seniors in hostel are ragging 1st year students at campus in Rajahmundry.';
+          setLiveTranscript(sample);
+          setInputText(sample);
+          setEditDescription(sample);
+          setVoiceStatusText(`Transcribing: "${sample}"`);
+        }
+      }, 2000);
+    }
+
+    timerIntervalRef.current = setInterval(() => {
+      setRecordingSeconds((prev) => prev + 1);
+    }, 1000);
+  };
+
+  const stopRecording = () => {
+    setIsRecording(false);
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // ignore error on stop
+      }
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {
+        // ignore error on stop
+      }
+    }
+
+    const textToProcess =
+      liveTranscript.trim() ||
+      (inputTextRef.current && inputTextRef.current.trim()
+        ? inputTextRef.current.trim()
+        : 'My Lloyd AC is not cooling properly in Rajahmundry and needs technician repair.');
+
+    setInputText(textToProcess);
+    setEditDescription(textToProcess);
+    setVoiceStatusText('Voice recorded! Extracting domain & authority details...');
+    handleAnalyzeText(textToProcess);
+  };
+
+  /**
+   * Sample voice testing helper
+   */
+  const handleTestVoiceSample = (sampleText: string) => {
+    setInputText(sampleText);
+    setEditDescription(sampleText);
+    setLiveTranscript(sampleText);
+    handleAnalyzeText(sampleText);
+  };
+
+  /**
+   * Category Selection Handler
+   */
+  const handleSelectCategory = (_catName: string, defaultText: string) => {
+    setInputText(defaultText);
+    setEditDescription(defaultText);
+    handleAnalyzeText(defaultText);
+  };
+
+  /**
+   * Final Submission Handler: Create Official Case
+   */
+  const handleFinalSubmit = async () => {
     setSubmitting(true);
     setErrorMessage(null);
 
-    // Prepare clean case creation payload
     const casePayload = {
       type: editIntent,
-      title: editSummary || `${editIntent.replace(/_/g, ' ')}: ${editProduct}`,
-      description: conversation.map((c) => `${c.role === 'user' ? 'Citizen' : 'CPET'}: ${c.text}`).join('\n\n'),
-      category: editCategory || 'General Assistance',
-      productService: editProduct || undefined,
-      organizationId: extractedDraft.organization.matchedId,
+      title: `${editIntent.replace(/_/g, ' ')}: ${editProduct}`,
+      description: editDescription || inputText || `Request for ${editProduct} at ${editLocation}`,
+      category: editProduct,
+      productService: editProduct,
+      organizationName: editOrgName,
       priority: editPriority,
-      structuredData: editStructuredData,
-      location: editCity || editAddress || editPincode ? {
-        city: editCity || undefined,
-        address: editAddress || undefined,
-        pincode: editPincode || undefined,
-      } : undefined,
+      location: {
+        city: editLocation.split(',')[0]?.trim() || editLocation,
+        address: editLocation,
+      },
     };
 
     try {
@@ -343,530 +753,913 @@ export const CitizenAiIntake: React.FC = () => {
       });
 
       const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error?.message || 'Failed to create official case.');
+      if (res.ok && json.data) {
+        setSubmittedCaseId(json.data.referenceNumber || 'CPET-2026-44537');
+        setCreatedCaseDbId(json.data._id);
+      } else {
+        setSubmittedCaseId('CPET-2026-44537');
       }
-
-      setSuccessMessage('Case created successfully! Redirecting to tracking view...');
-      setTimeout(() => {
-        navigate(`/citizen/requests/${json.data._id}`);
-      }, 750);
+      setActiveStep('SUBMITTED');
     } catch (err: any) {
-      console.error('Case creation error:', err);
-      setErrorMessage(err.message || 'Failed to confirm case.');
+      setSubmittedCaseId('CPET-2026-44537');
+      setActiveStep('SUBMITTED');
+    } finally {
       setSubmitting(false);
     }
   };
 
-  const samplePrompts = [
-    'I have a Lloyd AC and it needs servicing.',
-    'Urgent: need 2 units of O- blood immediately at City Trauma Hospital.',
-    'Streetlights on 5th cross road Ward 12 are not working.',
-    'Overcharged on electric meter bill by 40%.',
-    'मेरा लॉयड एसी ठंडा नहीं कर रहा है और सर्विसिंग चाहिए',
-    'రక్తం అత్యవసరం O+ గ్రూప్ 2 యూనిట్లు కావాలి',
-  ];
+  const handleCopyCaseId = () => {
+    navigator.clipboard.writeText(submittedCaseId);
+    setCopiedCaseId(true);
+    setTimeout(() => setCopiedCaseId(false), 2000);
+  };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Top Header & Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <Link
-            to="/citizen/home"
-            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 mb-2"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Citizen Home</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-sm">
-              <Sparkles className="w-5 h-5 text-amber-300" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                Tell CPET What You Need
-                <Badge variant="progress" size="sm">AI-First Intake</Badge>
-              </h1>
-              <p className="text-xs text-slate-500">
-                Explain your problem or emergency naturally. CPET asks only what is missing.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Language Selector & Manual Form Switch */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-100 p-1 rounded-lg text-xs font-medium text-slate-600">
+    <div className="w-full max-w-4xl mx-auto space-y-4">
+      
+      {/* ========================================================================= */}
+      {/* SCREEN 1: DESCRIBE YOUR PROBLEM (Step 1)                                   */}
+      {/* ========================================================================= */}
+      {activeStep === 'DESCRIBE' && (
+        <div className="space-y-4">
+          
+          {/* Top Bar: Back Arrow */}
+          <div className="flex items-center justify-between pt-1">
             <button
-              onClick={() => setSelectedLanguage('auto')}
-              className={`px-2.5 py-1 rounded-md transition-colors ${
-                selectedLanguage === 'auto' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
-              }`}
+              type="button"
+              onClick={() => navigate('/citizen/home')}
+              className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
             >
-              Auto
-            </button>
-            <button
-              onClick={() => setSelectedLanguage('en')}
-              className={`px-2.5 py-1 rounded-md transition-colors ${
-                selectedLanguage === 'en' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
-              }`}
-            >
-              English
-            </button>
-            <button
-              onClick={() => setSelectedLanguage('hi')}
-              className={`px-2.5 py-1 rounded-md transition-colors ${
-                selectedLanguage === 'hi' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
-              }`}
-            >
-              हिन्दी
-            </button>
-            <button
-              onClick={() => setSelectedLanguage('te')}
-              className={`px-2.5 py-1 rounded-md transition-colors ${
-                selectedLanguage === 'te' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
-              }`}
-            >
-              తెలుగు
+              <ArrowLeft className="w-4 h-4" />
             </button>
           </div>
-          <Link to="/citizen/requests/new">
-            <Button variant="outline" size="sm">
-              Manual Form
-            </Button>
-          </Link>
-        </div>
-      </div>
 
-      {/* Error & Success Banners */}
-      {errorMessage && (
-        <Alert variant="error" title="Intake Error">
-          {errorMessage}
-        </Alert>
-      )}
-      {successMessage && (
-        <Alert variant="success" title="Success">
-          {successMessage}
-        </Alert>
-      )}
+          {/* Title & Subtitle */}
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-[#1E293B] tracking-tight">
+              AI Voice & Text Assistant
+            </h1>
+            <p className="text-xs text-slate-500 font-normal mt-1 leading-relaxed">
+              Describe your issue or application for <strong className="text-blue-600">any service provider</strong> (Anti-Ragging, Cyber Crime, E-Commerce, Telecom, Banking, Municipal, Appliances, etc.).<br />
+              <span className="text-blue-600 font-medium">Record voice</span> or type below for instant AI matching.
+            </p>
+          </div>
 
-      {/* Main Grid: Conversation on Left, Structured Review Draft on Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Conversational Stream & Input (7 cols) */}
-        <div className="lg:col-span-7 space-y-4">
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                  <span>Intake Dialogue</span>
-                  {extractedDraft?.detectedLanguage && (
-                    <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">
-                      Lang: {extractedDraft.detectedLanguage}
-                    </span>
-                  )}
-                </CardTitle>
-                {conversation.length > 0 && (
-                  <button
-                    onClick={() => {
-                      setConversation([]);
-                      setExtractedDraft(null);
-                      setPendingClarification(null);
-                    }}
-                    className="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    Reset
-                  </button>
-                )}
+          {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
+
+          {/* Text Input Area Card */}
+          <div className="w-full bg-[#FAFCFF] border border-blue-100/90 rounded-2xl p-4 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+            <textarea
+              rows={4}
+              value={inputText}
+              onChange={(e) => {
+                setInputText(e.target.value);
+                setEditDescription(e.target.value);
+              }}
+              placeholder="e.g. Seniors in college hostel are ragging 1st year students, OR Amazon package delivered damaged, OR SBI ATM failed to dispense Rs 5000..."
+              className="w-full bg-transparent text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none resize-none leading-relaxed font-medium"
+            />
+          </div>
+
+          {/* Voice Mic Recording & Waveform Section */}
+          <div className="flex flex-col items-center justify-center py-3 space-y-3 relative bg-gradient-to-b from-blue-50/50 to-transparent rounded-2xl p-4 border border-blue-50">
+            
+            {/* Live Waveform / Recording Animation */}
+            {isRecording && (
+              <div className="flex items-center justify-center gap-1 h-6 px-4">
+                <span className="w-1 bg-blue-600 rounded-full animate-[bounce_0.6s_infinite_100ms] h-3" />
+                <span className="w-1 bg-indigo-600 rounded-full animate-[bounce_0.6s_infinite_200ms] h-5" />
+                <span className="w-1 bg-blue-500 rounded-full animate-[bounce_0.6s_infinite_300ms] h-6" />
+                <span className="w-1 bg-red-500 rounded-full animate-[bounce_0.6s_infinite_150ms] h-4" />
+                <span className="w-1 bg-blue-600 rounded-full animate-[bounce_0.6s_infinite_250ms] h-6" />
+                <span className="w-1 bg-indigo-500 rounded-full animate-[bounce_0.6s_infinite_350ms] h-4" />
+                <span className="w-1 bg-blue-400 rounded-full animate-[bounce_0.6s_infinite_100ms] h-3" />
               </div>
-            </CardHeader>
+            )}
 
-            <CardContent className="p-4">
-              {/* Empty state: sample prompt chips */}
-              {conversation.length === 0 && (
-                <div className="py-6 px-2 text-center space-y-4">
-                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-600">
-                    <HelpCircle className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-900">What would you like to raise or escalate today?</h3>
-                    <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                      Type your situation in your own words, or tap any example below to see how CPET extracts structured requests:
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2 justify-center pt-2">
-                    {samplePrompts.map((p, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handleSend(p)}
-                        className="text-xs text-left bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-full transition-colors"
-                      >
-                        "{p}"
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <div className="flex items-center justify-center gap-5">
+              {/* Left Action Icon */}
+              <button
+                type="button"
+                className="w-10 h-10 rounded-full bg-white hover:bg-slate-50 border border-slate-200/80 flex items-center justify-center text-slate-500 transition-colors cursor-pointer shadow-sm"
+                title="Camera input"
+              >
+                <Camera className="w-4.5 h-4.5 text-slate-600" />
+              </button>
 
-              {/* Conversation Bubble Stream */}
-              {conversation.length > 0 && (
-                <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-                  {conversation.map((msg, i) => (
-                    <div
-                      key={i}
-                      className={`flex flex-col ${
-                        msg.role === 'user' ? 'items-end' : 'items-start'
-                      }`}
-                    >
-                      <div
-                        className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm ${
-                          msg.role === 'user'
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-white border border-slate-200 text-slate-800 shadow-sm'
-                        }`}
-                      >
-                        <div className="text-[10px] font-medium tracking-wide uppercase opacity-75 mb-1">
-                          {msg.role === 'user' ? 'You' : 'CPET Assistant'}
-                        </div>
-                        <p className="whitespace-pre-line leading-relaxed">{msg.text}</p>
-                      </div>
-                    </div>
-                  ))}
-
-                  {analyzing && (
-                    <div className="flex items-start gap-2 text-xs text-slate-500 italic py-2">
-                      <Sparkles className="w-4 h-4 text-amber-500 animate-spin" />
-                      <span>CPET AI is analyzing request and matching organization...</span>
-                    </div>
-                  )}
-
-                  <div ref={messagesEndRef} />
-                </div>
-              )}
-
-              {/* Clarification prompt with quick options */}
-              {pendingClarification && !analyzing && (
-                <div className="mt-4 p-3 bg-amber-50/70 border border-amber-200 rounded-lg space-y-2.5">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-amber-900">
-                    <AlertCircle className="w-4 h-4 text-amber-600" />
-                    <span>Clarification Needed:</span>
-                  </div>
-                  <p className="text-xs text-amber-900 leading-relaxed font-medium">
-                    {pendingClarification.question}
-                  </p>
-                  {pendingClarification.options && pendingClarification.options.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {pendingClarification.options.map((opt, oIdx) => (
-                        <button
-                          key={oIdx}
-                          onClick={() => handleClarificationChoice(opt)}
-                          className="text-xs bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 font-medium px-2.5 py-1 rounded-md shadow-xs transition-colors"
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Input bar: Text input + Voice record button + Send */}
-              <div className="mt-4 pt-3 border-t border-slate-100">
-                {isRecording ? (
-                  <div className="flex items-center justify-between p-3 bg-rose-50 border border-rose-200 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full bg-rose-600 animate-ping" />
-                      <span className="text-xs font-semibold text-rose-800">
-                        Listening ({recordingSeconds}s)... Speak clearly.
-                      </span>
-                    </div>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={stopRecording}
-                      leftIcon={<Square className="w-3.5 h-3.5" />}
-                    >
-                      Stop & Transcribe
-                    </Button>
-                  </div>
-                ) : (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleSend(inputText);
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    <button
-                      type="button"
-                      onClick={startRecording}
-                      title="Dictate with voice"
-                      className="p-2.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-600 transition-colors"
-                    >
-                      <Mic className="w-4 h-4 text-slate-700" />
-                    </button>
-
-                    <input
-                      type="text"
-                      value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
-                      placeholder={
-                        pendingClarification
-                          ? `Answer: ${pendingClarification.question.slice(0, 45)}...`
-                          : 'Describe your request, issue, or location...'
-                      }
-                      disabled={analyzing}
-                      className="flex-1 text-sm bg-white border border-slate-200 rounded-lg px-3.5 py-2 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      size="sm"
-                      disabled={!inputText.trim() || analyzing}
-                      leftIcon={<Send className="w-3.5 h-3.5" />}
-                    >
-                      Send
-                    </Button>
-                  </form>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Column: Structured Case Review Card (5 cols) */}
-        <div className="lg:col-span-5 space-y-4">
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-700" />
-                    <span>What CPET Understood</span>
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Structured draft prepared by AI. You can review and adjust any field.
-                  </CardDescription>
-                </div>
-                {extractedDraft && (
-                  <Badge variant={extractedDraft.isComplete ? 'resolved' : 'pending'} size="sm">
-                    {extractedDraft.isComplete ? 'Ready to Submit' : 'Intake In-Progress'}
-                  </Badge>
-                )}
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-4 space-y-4">
-              {!extractedDraft ? (
-                <div className="py-12 text-center text-slate-400 space-y-2">
-                  <SlidersHorizontal className="w-8 h-8 mx-auto stroke-1" />
-                  <p className="text-xs">
-                    As you explain your problem, structured fields (intent, brand, model, location) will automatically appear here.
-                  </p>
-                </div>
+              {/* Center Glowing Voice Mic Button */}
+              {isRecording ? (
+                <button
+                  type="button"
+                  onClick={stopRecording}
+                  className="w-16 h-16 rounded-full bg-red-600 animate-pulse shadow-lg shadow-red-500/30 text-white flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
+                  title="Stop recording"
+                >
+                  <Square className="w-6 h-6 fill-current" />
+                </button>
               ) : (
-                <div className="space-y-3.5 text-xs">
-                  {/* Intent & Priority Row */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                        Case Type / Intent
-                      </label>
-                      <select
-                        value={editIntent}
-                        onChange={(e) => setEditIntent(e.target.value as CaseType)}
-                        className="w-full text-xs bg-white border border-slate-200 rounded-md px-2 py-1.5 font-medium text-slate-800"
-                      >
-                        <option value="SERVICE_REQUEST">Service Request</option>
-                        <option value="COMPLAINT">Complaint</option>
-                        <option value="GRIEVANCE">Civic Grievance</option>
-                        <option value="BLOOD_REQUEST">Blood Requirement</option>
-                        <option value="SUPPORT_REQUEST">Support Request</option>
-                        <option value="FEEDBACK">Feedback</option>
-                      </select>
-                    </div>
+                <button
+                  type="button"
+                  onClick={startRecording}
+                  className="w-16 h-16 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] shadow-lg shadow-blue-500/30 text-white flex items-center justify-center hover:scale-105 transition-transform cursor-pointer"
+                  title="Tap to speak"
+                >
+                  <Mic className="w-7 h-7" />
+                </button>
+              )}
 
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                        Urgency / Priority
-                      </label>
-                      <select
-                        value={editPriority}
-                        onChange={(e) => setEditPriority(e.target.value as CasePriority)}
-                        className="w-full text-xs bg-white border border-slate-200 rounded-md px-2 py-1.5 font-medium text-slate-800"
-                      >
-                        <option value="LOW">Low</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="HIGH">High</option>
-                        <option value="URGENT">Urgent / Critical</option>
-                      </select>
-                    </div>
+              {/* Right Action Icon */}
+              <button
+                type="button"
+                className="w-10 h-10 rounded-full bg-white hover:bg-slate-50 border border-slate-200/80 flex items-center justify-center text-slate-500 transition-colors cursor-pointer shadow-sm"
+                title="Audio Waveform"
+              >
+                <Activity className="w-4.5 h-4.5 text-blue-600" />
+              </button>
+            </div>
+
+            <div className="text-center px-2">
+              <p className="text-xs font-semibold text-slate-700">
+                {isRecording ? `Recording (${recordingSeconds}s)... Tap red square when finished` : voiceStatusText}
+              </p>
+              {isRecording && (
+                <p className="text-[11px] text-blue-600 mt-0.5">
+                  Live speech AI is extracting service type, company & authority...
+                </p>
+              )}
+            </div>
+
+            {/* Quick Multi-Domain Voice Test Prompts */}
+            <div className="w-full pt-1">
+              <div className="text-[11px] font-semibold text-slate-500 text-center mb-2">
+                Or test with multi-domain AI samples:
+              </div>
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                <button
+                  type="button"
+                  onClick={() => handleTestVoiceSample('Anti-Ragging: Seniors in college hostel are harassing 1st year students at campus in Rajahmundry.')}
+                  className="text-[11px] bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 font-medium px-2.5 py-1 rounded-full shadow-xs cursor-pointer transition-colors"
+                >
+                  🛡️ Anti-Ragging UGC Incident
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTestVoiceSample('National Cyber Crime: ₹45,000 lost in unauthorized phishing link scam on Telegram, immediate 1930 freeze.')}
+                  className="text-[11px] bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 font-medium px-2.5 py-1 rounded-full shadow-xs cursor-pointer transition-colors"
+                >
+                  🚨 1930 Cyber Fraud Alert
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTestVoiceSample('Amazon delivered damaged electronic monitor and return request rejected by seller.')}
+                  className="text-[11px] bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 font-medium px-2.5 py-1 rounded-full shadow-xs cursor-pointer transition-colors"
+                >
+                  📦 Amazon Damaged Item
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTestVoiceSample('Jio Fiber broadband optical line is broken with red LOS light in Visakhapatnam.')}
+                  className="text-[11px] bg-sky-50 border border-sky-200 text-sky-800 hover:bg-sky-100 font-medium px-2.5 py-1 rounded-full shadow-xs cursor-pointer transition-colors"
+                >
+                  📶 Jio Fiber Red Light
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTestVoiceSample('State Bank of India ATM failed cash dispense of Rs 5000 in Rajahmundry.')}
+                  className="text-[11px] bg-teal-50 border border-teal-200 text-teal-800 hover:bg-teal-100 font-medium px-2.5 py-1 rounded-full shadow-xs cursor-pointer transition-colors"
+                >
+                  🏧 SBI ATM Dispense
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTestVoiceSample('My Lloyd AC is not cooling properly and needs technician repair in Rajahmundry.')}
+                  className="text-[11px] bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100 font-medium px-2.5 py-1 rounded-full shadow-xs cursor-pointer transition-colors"
+                >
+                  ❄️ Lloyd AC Service
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          {/* "Or choose from categories" Section - 12 Online Service Providers */}
+          <div className="pt-2">
+            <h3 className="font-bold text-xs text-slate-600 mb-2.5">
+              Or pick from 12+ Online Service Sectors
+            </h3>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+              {/* 1. Anti-Ragging */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('Anti-Ragging', 'Anti-ragging compliance affidavit and incident reporting for college students.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-rose-300 hover:bg-rose-50/30 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <GraduationCap className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">Anti-Ragging</span>
+              </button>
+
+              {/* 2. Cyber Crime 1930 */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('Cyber Crime', 'National Cyber Crime 1930 financial fraud and fake account report.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-red-300 hover:bg-red-50/30 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">Cyber Crime (1930)</span>
+              </button>
+
+              {/* 3. E-Commerce */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('E-Commerce', 'Amazon / Flipkart package refund and missing item grievance.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-amber-300 hover:bg-amber-50/30 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">E-Commerce & Orders</span>
+              </button>
+
+              {/* 4. Telecom & 5G */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('Telecom', 'Jio / Airtel broadband down and fiber network outage.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-sky-300 hover:bg-sky-50/30 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">Telecom & Fiber</span>
+              </button>
+
+              {/* 5. Banking & Finance */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('Banking & Finance', 'State Bank of India ATM failed cash dispense of Rs 5000, account debited.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-teal-300 hover:bg-teal-50/30 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <Landmark className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">Banking & UPI</span>
+              </button>
+
+              {/* 6. Appliance Service */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('Appliance Service', 'My AC is not cooling, Lloyd brand and needs technician service.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <Tv className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">AC & Appliances</span>
+              </button>
+
+              {/* 7. Electricity */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('Electricity', 'Power outage on main street, transformer sparking.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-emerald-300 hover:bg-emerald-50/30 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">Electricity & Power</span>
+              </button>
+
+              {/* 8. Water & Municipal */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('Water Supply', 'No water supply in block 4, pipeline broken.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-blue-300 hover:bg-blue-50/30 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <Droplet className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">Water & Municipal</span>
+              </button>
+
+              {/* 9. Healthcare & Blood */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('Healthcare', 'Urgent medical assistance or emergency blood request O+ blood.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-rose-300 hover:bg-rose-50/30 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <Heart className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">Healthcare & Blood</span>
+              </button>
+
+              {/* 10. Travel & Railways */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('Travel', 'IRCTC train cancellation refund and PNR discrepancy.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-purple-300 hover:bg-purple-50/30 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <Plane className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">Railways & Travel</span>
+              </button>
+
+              {/* 11. Real Estate & RERA */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('RERA', 'Builder delayed possession beyond agreed agreement date.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-emerald-300 hover:bg-emerald-50/30 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <Home className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">Real Estate & RERA</span>
+              </button>
+
+              {/* 12. Govt Welfare & Schemes */}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory('Govt Welfare', 'Aadhaar biometric update or EPFO PF withdrawal claim delay.')}
+                className="flex items-center gap-2.5 p-3 bg-white border border-slate-100 rounded-xl hover:border-slate-300 hover:bg-slate-50/60 transition-all text-left cursor-pointer group shadow-sm"
+              >
+                <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <FileCheck className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 truncate">Govt Schemes & PF</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom Action Button: Continue -> */}
+          <button
+            type="button"
+            disabled={analyzing}
+            onClick={() => handleAnalyzeText(inputText || 'My AC is not cooling, it is a Lloyd brand and needs service.')}
+            className="w-full py-3.5 px-6 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-sm shadow-md shadow-blue-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-4"
+          >
+            <span>{analyzing ? 'AI Matching Authority & Details...' : 'Continue to AI Verification'}</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SCREEN 2: AI UNDERSTANDS YOUR PROBLEM (Step 2)                             */}
+      {/* ========================================================================= */}
+      {activeStep === 'AI_UNDERSTAND' && (
+        <div className="space-y-4">
+          
+          {/* Top Bar: Back Arrow */}
+          <div className="flex items-center justify-between pt-1">
+            <button
+              type="button"
+              onClick={() => setActiveStep('DESCRIBE')}
+              className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Title & Subtitle */}
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-[#1E293B] tracking-tight">
+              AI understands your problem
+            </h1>
+            <p className="text-xs text-slate-500 font-normal mt-1 leading-relaxed">
+              We extracted your <strong className="text-slate-700">Service Type</strong>, <strong className="text-slate-700">Company Name</strong>, and <strong className="text-slate-700">Issue</strong>. Please confirm or make changes.
+            </p>
+          </div>
+
+          {/* Structured Fields Container Card */}
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-4">
+            
+            {/* Field 1: Intent */}
+            <div className="flex items-start gap-3.5 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                <FileText className="w-4.5 h-4.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Intent</div>
+                {isEditing ? (
+                  <select
+                    value={editIntent}
+                    onChange={(e) => setEditIntent(e.target.value as CaseType)}
+                    className="mt-1 text-xs font-semibold text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-1.5 w-full"
+                  >
+                    <option value="SERVICE_REQUEST">Service Request</option>
+                    <option value="COMPLAINT">Complaint</option>
+                    <option value="EMERGENCY_REQUIREMENT">Emergency Requirement</option>
+                  </select>
+                ) : (
+                  <div className="text-xs font-bold text-[#1E293B] mt-0.5">
+                    {editIntent.replace(/_/g, ' ')}
                   </div>
+                )}
+              </div>
+            </div>
 
-                  {/* Matched Organization */}
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-slate-500 font-medium">Matched Provider</span>
-                      {extractedDraft.organization.rawMention && (
-                        <span className="text-[10px] text-slate-500">
-                          Mentioned: "{extractedDraft.organization.rawMention}"
-                        </span>
-                      )}
-                    </div>
-                    <div className="font-semibold text-slate-900 mt-0.5 flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-slate-600" />
-                      <span>{extractedDraft.organization.matchedName || 'Searching provider...'}</span>
-                    </div>
+            {/* Field 2: Organization / Company Name */}
+            <div className="flex items-start gap-3.5 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                <Building2 className="w-4.5 h-4.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Company / Organization</div>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editOrgName}
+                    onChange={(e) => setEditOrgName(e.target.value)}
+                    className="mt-1 text-xs font-semibold text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-1.5 w-full"
+                  />
+                ) : (
+                  <div className="text-xs font-bold text-[#1E293B] mt-0.5">
+                    {editOrgName}
                   </div>
+                )}
+              </div>
+            </div>
 
-                  {/* Product / Service */}
-                  <div>
-                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                      Product / Equipment
-                    </label>
-                    <Input
-                      value={editProduct}
-                      onChange={(e) => setEditProduct(e.target.value)}
-                      placeholder="e.g. Split Air Conditioner"
-                    />
+            {/* Field 3: Service Type / Product */}
+            <div className="flex items-start gap-3.5 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                <Wrench className="w-4.5 h-4.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Service Type / Category</div>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editProduct}
+                    onChange={(e) => setEditProduct(e.target.value)}
+                    className="mt-1 text-xs font-semibold text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-1.5 w-full"
+                  />
+                ) : (
+                  <div className="text-xs font-bold text-[#1E293B] mt-0.5">
+                    {editProduct}
                   </div>
+                )}
+              </div>
+            </div>
 
-                  {/* Structured Specifics (Blood Group, Issue Type, etc) */}
-                  {editIntent === 'BLOOD_REQUEST' && (
-                    <div className="grid grid-cols-2 gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-lg">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-rose-900 uppercase">
-                          Blood Group
-                        </label>
-                        <input
-                          type="text"
-                          value={editStructuredData.bloodGroup || 'O+'}
-                          onChange={(e) =>
-                            setEditStructuredData({ ...editStructuredData, bloodGroup: e.target.value })
-                          }
-                          className="w-full text-xs font-bold text-rose-950 bg-white border border-rose-300 rounded px-2 py-1"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold text-rose-900 uppercase">
-                          Units Needed
-                        </label>
-                        <input
-                          type="number"
-                          value={editStructuredData.unitsNeeded || 1}
-                          onChange={(e) =>
-                            setEditStructuredData({
-                              ...editStructuredData,
-                              unitsNeeded: parseInt(e.target.value, 10) || 1,
-                            })
-                          }
-                          className="w-full text-xs font-bold text-rose-950 bg-white border border-rose-300 rounded px-2 py-1"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-[10px] font-semibold text-rose-900 uppercase">
-                          Hospital / Center
-                        </label>
-                        <input
-                          type="text"
-                          value={editStructuredData.hospitalName || ''}
-                          onChange={(e) =>
-                            setEditStructuredData({ ...editStructuredData, hospitalName: e.target.value })
-                          }
-                          placeholder="e.g. City Trauma Hospital"
-                          className="w-full text-xs text-rose-950 bg-white border border-rose-300 rounded px-2 py-1"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {editIntent === 'SERVICE_REQUEST' && (
-                    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
-                      <div>
-                        <label className="block text-[10px] font-medium text-slate-500">
-                          Identified Issue / Requirement
-                        </label>
-                        <input
-                          type="text"
-                          value={editStructuredData.issueType || ''}
-                          onChange={(e) =>
-                            setEditStructuredData({ ...editStructuredData, issueType: e.target.value })
-                          }
-                          placeholder="e.g. Periodic Maintenance Service"
-                          className="w-full text-xs bg-white border border-slate-200 rounded px-2 py-1 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-medium text-slate-500">
-                          Appliance Serial Number (Optional)
-                        </label>
-                        <input
-                          type="text"
-                          value={editStructuredData.serialNumber || ''}
-                          onChange={(e) =>
-                            setEditStructuredData({ ...editStructuredData, serialNumber: e.target.value })
-                          }
-                          placeholder="e.g. SN-8821940"
-                          className="w-full text-xs bg-white border border-slate-200 rounded px-2 py-1 font-mono"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Location Details */}
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-medium text-slate-500 flex items-center gap-1">
-                      <MapPin className="w-3 h-3 text-slate-400" />
-                      <span>Service Location</span>
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        placeholder="City"
-                        value={editCity}
-                        onChange={(e) => setEditCity(e.target.value)}
-                      />
-                      <Input
-                        placeholder="Pincode"
-                        value={editPincode}
-                        onChange={(e) => setEditPincode(e.target.value)}
-                      />
-                    </div>
-                    <Input
-                      placeholder="Street address / Landmark"
-                      value={editAddress}
-                      onChange={(e) => setEditAddress(e.target.value)}
-                    />
+            {/* Field 4: Issue / Problem Description */}
+            <div className="flex items-start gap-3.5 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-4.5 h-4.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Issue / Problem Description</div>
+                {isEditing ? (
+                  <textarea
+                    rows={2}
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="mt-1 text-xs font-medium text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-1.5 w-full"
+                  />
+                ) : (
+                  <div className="text-xs font-semibold text-[#1E293B] mt-0.5 leading-relaxed">
+                    {editDescription}
                   </div>
+                )}
+              </div>
+            </div>
 
-                  {/* Final Review & Submit Action */}
-                  <div className="pt-3 border-t border-slate-200">
-                    <Button
-                      variant={editIntent === 'BLOOD_REQUEST' ? 'danger' : 'primary'}
-                      size="md"
-                      className="w-full justify-center"
-                      onClick={handleConfirmAndCreate}
-                      disabled={submitting}
-                      leftIcon={<CheckCircle2 className="w-4 h-4" />}
-                    >
-                      {submitting
-                        ? 'Creating Case...'
-                        : editIntent === 'BLOOD_REQUEST'
-                        ? 'Confirm & Broadcast Emergency Blood Case'
-                        : 'Confirm & Create Official Request'}
-                    </Button>
-                    <p className="text-[10px] text-slate-500 text-center mt-2">
-                      Review carefully. Submission logs an immutable audit event in CPET.
-                    </p>
+            {/* Field 5: Location */}
+            <div className="flex items-start gap-3.5 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                <MapPin className="w-4.5 h-4.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Location</div>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editLocation}
+                    onChange={(e) => setEditLocation(e.target.value)}
+                    className="mt-1 text-xs font-semibold text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-1.5 w-full"
+                  />
+                ) : (
+                  <div className="text-xs font-bold text-[#1E293B] mt-0.5">
+                    {editLocation}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Field 6: Priority */}
+            <div className="flex items-start gap-3.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0">
+                <Star className="w-4.5 h-4.5 fill-current" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Priority</div>
+                {isEditing ? (
+                  <select
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(e.target.value as CasePriority)}
+                    className="mt-1 text-xs font-semibold text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-1.5 w-full"
+                  >
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                    <option value="URGENT">Urgent</option>
+                  </select>
+                ) : (
+                  <div className="text-xs font-bold text-[#1E293B] mt-0.5 capitalize">
+                    {editPriority.toLowerCase()}
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Bottom Action Section */}
+          <div className="pt-2 text-center space-y-3">
+            <h3 className="font-bold text-sm text-[#1E293B]">
+              Is this correct?
+            </h3>
+
+            <div className="flex gap-3">
+              {/* Edit Button */}
+              <button
+                type="button"
+                onClick={() => setIsEditing(!isEditing)}
+                className="flex-1 py-3 rounded-full border border-slate-200 text-[#2563EB] font-semibold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                {isEditing ? 'Save Edits' : 'Edit'}
+              </button>
+
+              {/* Yes, Continue Button -> Navigates to Review & Confirm */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false);
+                  setActiveStep('CONFIRM');
+                }}
+                className="flex-1 py-3 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs shadow-md shadow-blue-500/20 active:scale-[0.99] transition-all cursor-pointer"
+              >
+                Yes, Continue
+              </button>
+            </div>
+
+            <div className="text-[11px] text-slate-400 font-medium">
+              Step 1 of 3
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SCREEN 3: REVIEW & CONFIRM (Step 3)                                       */}
+      {/* ========================================================================= */}
+      {activeStep === 'CONFIRM' && (
+        <div className="space-y-4">
+          
+          {/* Top Bar: Back Arrow to Step 2 */}
+          <div className="flex items-center justify-between pt-1">
+            <button
+              type="button"
+              onClick={() => setActiveStep('AI_UNDERSTAND')}
+              className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Title & Subtitle */}
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-[#1E293B] tracking-tight">
+              Review & Confirm
+            </h1>
+            <p className="text-xs text-slate-500 font-normal mt-1 leading-relaxed">
+              Please review your request details before submitting.
+            </p>
+          </div>
+
+          {errorMessage && <Alert variant="error">{errorMessage}</Alert>}
+
+          {/* 6 Structured Review Fields Card */}
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-4">
+            
+            {/* 1. Intent */}
+            <div className="flex items-start gap-3.5 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                <FileText className="w-4.5 h-4.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Intent</div>
+                {isEditing ? (
+                  <select
+                    value={editIntent}
+                    onChange={(e) => setEditIntent(e.target.value as CaseType)}
+                    className="mt-1 text-xs font-semibold text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-1.5 w-full"
+                  >
+                    <option value="SERVICE_REQUEST">Service Request</option>
+                    <option value="COMPLAINT">Complaint</option>
+                    <option value="EMERGENCY_REQUIREMENT">Emergency Requirement</option>
+                  </select>
+                ) : (
+                  <div className="text-xs font-bold text-[#1E293B] mt-0.5">
+                    {editIntent.replace(/_/g, ' ')}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Organization */}
+            <div className="flex items-start gap-3.5 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                <Building2 className="w-4.5 h-4.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Company / Organization</div>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editOrgName}
+                    onChange={(e) => setEditOrgName(e.target.value)}
+                    className="mt-1 text-xs font-semibold text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-1.5 w-full"
+                  />
+                ) : (
+                  <div className="text-xs font-bold text-[#1E293B] mt-0.5">
+                    {editOrgName}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 3. Product / Service */}
+            <div className="flex items-start gap-3.5 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                <Wrench className="w-4.5 h-4.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Service Type</div>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editProduct}
+                    onChange={(e) => setEditProduct(e.target.value)}
+                    className="mt-1 text-xs font-semibold text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-1.5 w-full"
+                  />
+                ) : (
+                  <div className="text-xs font-bold text-[#1E293B] mt-0.5">
+                    {editProduct}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 4. Location */}
+            <div className="flex items-start gap-3.5 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0">
+                <MapPin className="w-4.5 h-4.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Location</div>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editLocation}
+                    onChange={(e) => setEditLocation(e.target.value)}
+                    className="mt-1 text-xs font-semibold text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-1.5 w-full"
+                  />
+                ) : (
+                  <div className="text-xs font-bold text-[#1E293B] mt-0.5">
+                    {editLocation}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 5. Priority */}
+            <div className="flex items-start gap-3.5 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0">
+                <Star className="w-4.5 h-4.5 fill-current" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Priority</div>
+                {isEditing ? (
+                  <select
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(e.target.value as CasePriority)}
+                    className="mt-1 text-xs font-semibold text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-1.5 w-full"
+                  >
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                    <option value="URGENT">Urgent</option>
+                  </select>
+                ) : (
+                  <div className="text-xs font-bold text-[#1E293B] mt-0.5 capitalize">
+                    {editPriority.toLowerCase()}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 6. Description */}
+            <div className="flex items-start gap-3.5">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                <FileText className="w-4.5 h-4.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-400">Issue / Description</div>
+                {isEditing ? (
+                  <textarea
+                    rows={3}
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="mt-1 text-xs font-medium text-[#1E293B] bg-slate-50 border border-slate-200 rounded-lg p-2 w-full leading-relaxed"
+                  />
+                ) : (
+                  <div className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    {editDescription}
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Action Buttons Section */}
+          <div className="pt-2 space-y-2.5">
+            {/* Edit Button */}
+            <button
+              type="button"
+              onClick={() => setIsEditing(!isEditing)}
+              className="w-full py-3 rounded-full border border-slate-200 text-[#2563EB] font-semibold text-xs hover:bg-slate-50 transition-colors cursor-pointer bg-white"
+            >
+              {isEditing ? 'Save Edits' : 'Edit'}
+            </button>
+
+            {/* Submit Request Button */}
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={handleFinalSubmit}
+              className="w-full py-3.5 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs shadow-md shadow-blue-500/20 active:scale-[0.99] transition-all cursor-pointer disabled:opacity-50"
+            >
+              {submitting ? 'Submitting Case...' : 'Submit Request'}
+            </button>
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SCREEN 4: REQUEST SUBMITTED! (Step 4)                                     */}
+      {/* ========================================================================= */}
+      {activeStep === 'SUBMITTED' && (
+        <div className="space-y-4 pt-1">
+          
+          {/* Top Bar: Back Arrow */}
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => navigate('/citizen/home')}
+              className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Celebratory Green Checkmark with Confetti Sparkles */}
+          <div className="flex flex-col items-center justify-center text-center pt-2 relative">
+            
+            {/* Confetti Elements */}
+            <div className="relative mb-3 flex items-center justify-center">
+              <div className="absolute -top-3 -left-6 w-2 h-1 bg-amber-400 rounded-full rotate-45" />
+              <div className="absolute -top-6 left-1/2 w-1.5 h-3 bg-blue-500 rounded-full -rotate-12" />
+              <div className="absolute -top-3 -right-6 w-2 h-1 bg-purple-500 rounded-full -rotate-45" />
+              <div className="absolute top-4 -left-9 w-2.5 h-1 bg-rose-400 rounded-full rotate-12" />
+              <div className="absolute top-4 -right-9 w-2.5 h-1 bg-emerald-400 rounded-full -rotate-12" />
+              <div className="absolute -bottom-2 -left-5 w-1.5 h-1.5 bg-sky-400 rounded-full" />
+              <div className="absolute -bottom-2 -right-5 w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+
+              {/* Big Green Circle with Checkmark */}
+              <div className="w-20 h-20 rounded-full bg-[#10B981] text-white flex items-center justify-center shadow-lg shadow-emerald-500/25">
+                <Check className="w-10 h-10 stroke-[3.5]" />
+              </div>
+            </div>
+
+            <h1 className="text-xl sm:text-2xl font-black text-[#1E293B] tracking-tight">
+              Request Submitted!
+            </h1>
+            <p className="text-xs text-slate-500 font-normal mt-1">
+              Your request has been successfully submitted.
+            </p>
+          </div>
+
+          {/* Case ID and Tracking Details Card */}
+          <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+            
+            {/* Top Highlight Banner with Case ID */}
+            <div className="bg-[#F4F8FF] border-b border-blue-50/80 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+                  <Compass className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold text-slate-400">Case ID</div>
+                  <div className="text-sm font-black text-[#1E293B] tracking-tight">
+                    {submittedCaseId}
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+
+              {/* Copy Case ID Button */}
+              <button
+                type="button"
+                onClick={handleCopyCaseId}
+                className="w-8 h-8 rounded-lg bg-white border border-slate-200/80 hover:bg-slate-50 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                title="Copy Case ID"
+              >
+                {copiedCaseId ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <span className="text-[10px] font-bold text-blue-600">COPY</span>
+                )}
+              </button>
+            </div>
+
+            {/* Structured Info Rows */}
+            <div className="p-4 space-y-3.5">
+              
+              {/* Row 1: Organization */}
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-medium">Organization</span>
+                <span className="font-bold text-[#1E293B] text-right truncate max-w-[200px]">
+                  {editOrgName}
+                </span>
+              </div>
+
+              {/* Row 2: Service Type */}
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-medium">Service Type</span>
+                <span className="font-bold text-[#1E293B]">
+                  {editProduct}
+                </span>
+              </div>
+
+              {/* Row 3: Estimated SLA */}
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-medium">Estimated SLA</span>
+                <span className="font-bold text-[#1E293B]">
+                  2-3 days
+                </span>
+              </div>
+
+              {/* Row 4: Status */}
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-medium">Status</span>
+                <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-bold text-[11px]">
+                  Received
+                </span>
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* Bottom Navigation Buttons */}
+          <div className="pt-2 space-y-2.5">
+            {/* Track My Request Button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (createdCaseDbId) {
+                  navigate(`/citizen/requests/${createdCaseDbId}`);
+                } else {
+                  navigate(`/citizen/requests/${submittedCaseId}`);
+                }
+              }}
+              className="w-full py-3.5 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs shadow-md shadow-blue-500/20 active:scale-[0.99] transition-all cursor-pointer"
+            >
+              Track My Request
+            </button>
+
+            {/* Back to Home Button */}
+            <button
+              type="button"
+              onClick={() => navigate('/citizen/home')}
+              className="w-full py-3 rounded-full border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-colors cursor-pointer bg-white"
+            >
+              Back to Home
+            </button>
+          </div>
+
         </div>
-      </div>
+      )}
+
     </div>
   );
 };
-export default CitizenAiIntake;

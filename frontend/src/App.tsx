@@ -19,21 +19,44 @@ const HealthView = lazy(() => import('./pages/HealthView.js').then((m) => ({ def
 const CitizenLogin = lazy(() => import('./pages/citizen/CitizenLogin.js').then((m) => ({ default: m.CitizenLogin })));
 const CitizenSignup = lazy(() => import('./pages/citizen/CitizenSignup.js').then((m) => ({ default: m.CitizenSignup })));
 const CitizenHome = lazy(() => import('./pages/citizen/CitizenHome.js').then((m) => ({ default: m.CitizenHome })));
+const CitizenFormsCatalog = lazy(() => import('./pages/citizen/CitizenFormsCatalog.js').then((m) => ({ default: m.CitizenFormsCatalog })));
+const CitizenDynamicFormView = lazy(() => import('./pages/citizen/CitizenDynamicFormView.js').then((m) => ({ default: m.CitizenDynamicFormView })));
 const CitizenProfile = lazy(() => import('./pages/citizen/CitizenProfile.js').then((m) => ({ default: m.CitizenProfile })));
 const CitizenMyRequests = lazy(() => import('./pages/citizen/CitizenMyRequests.js').then((m) => ({ default: m.CitizenMyRequests })));
 const CitizenNewRequest = lazy(() => import('./pages/citizen/CitizenNewRequest.js').then((m) => ({ default: m.CitizenNewRequest })));
 const CitizenCaseDetails = lazy(() => import('./pages/citizen/CitizenCaseDetails.js').then((m) => ({ default: m.CitizenCaseDetails })));
 const CitizenAiIntake = lazy(() => import('./pages/citizen/CitizenAiIntake.js').then((m) => ({ default: m.CitizenAiIntake })));
 const CitizenBloodHub = lazy(() => import('./pages/citizen/CitizenBloodHub.js').then((m) => ({ default: m.CitizenBloodHub })));
+const CitizenHelp = lazy(() => import('./pages/citizen/CitizenHelp.js').then((m) => ({ default: m.CitizenHelp })));
 
 // Organization Auth & Workspace (Lazy Loaded)
 const OrgLogin = lazy(() => import('./pages/organization/OrgLogin.js').then((m) => ({ default: m.OrgLogin })));
 const OrgOnboarding = lazy(() => import('./pages/organization/OrgOnboarding.js').then((m) => ({ default: m.OrgOnboarding })));
 const OrgDashboard = lazy(() => import('./pages/organization/OrgDashboard.js').then((m) => ({ default: m.OrgDashboard })));
+const OrgFormsList = lazy(() => import('./pages/organization/OrgFormsList.js').then((m) => ({ default: m.OrgFormsList })));
+const OrgFormBuilder = lazy(() => import('./pages/organization/OrgFormBuilder.js').then((m) => ({ default: m.OrgFormBuilder })));
+const OrgFormSubmissions = lazy(() => import('./pages/organization/OrgFormSubmissions.js').then((m) => ({ default: m.OrgFormSubmissions })));
 const OrgRequestQueue = lazy(() => import('./pages/organization/OrgRequestQueue.js').then((m) => ({ default: m.OrgRequestQueue })));
 const OrgRequestDetails = lazy(() => import('./pages/organization/OrgRequestDetails.js').then((m) => ({ default: m.OrgRequestDetails })));
+const OrgTimelineExpanded = lazy(() => import('./pages/organization/OrgTimelineExpanded.js').then((m) => ({ default: m.OrgTimelineExpanded })));
 const OrgTeam = lazy(() => import('./pages/organization/OrgTeam.js').then((m) => ({ default: m.OrgTeam })));
+const OrgAddTeamMember = lazy(() => import('./pages/organization/OrgAddTeamMember.js').then((m) => ({ default: m.OrgAddTeamMember })));
 const OrgSettings = lazy(() => import('./pages/organization/OrgSettings.js').then((m) => ({ default: m.OrgSettings })));
+const OrgProfile = lazy(() => import('./pages/organization/OrgProfile.js').then((m) => ({ default: m.OrgProfile })));
+const OrgNotifications = lazy(() => import('./pages/organization/OrgNotifications.js').then((m) => ({ default: m.OrgNotifications })));
+const OrgPerformance = lazy(() => import('./pages/organization/OrgPerformance.js').then((m) => ({ default: m.OrgPerformance })));
+
+// Public Direct Online Form Gateway
+const PublicFormView = lazy(() => import('./pages/public/PublicFormView.js').then((m) => ({ default: m.PublicFormView })));
+
+// Admin Portal & Workspace (Lazy Loaded)
+const AdminLanding = lazy(() => import('./pages/admin/AdminLanding.js').then((m) => ({ default: m.AdminLanding })));
+const AdminLogin = lazy(() => import('./pages/admin/AdminLogin.js').then((m) => ({ default: m.AdminLogin })));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard.js').then((m) => ({ default: m.AdminDashboard })));
+const AdminOrganizations = lazy(() => import('./pages/admin/AdminOrganizations.js').then((m) => ({ default: m.AdminOrganizations })));
+const AdminOrgDetails = lazy(() => import('./pages/admin/AdminOrgDetails.js').then((m) => ({ default: m.AdminOrgDetails })));
+const AdminServices = lazy(() => import('./pages/admin/AdminServices.js').then((m) => ({ default: m.AdminServices })));
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings.js').then((m) => ({ default: m.AdminSettings })));
 
 const PageFallback: React.FC = () => (
   <div className="flex min-h-[60vh] items-center justify-center p-8">
@@ -52,6 +75,10 @@ export const App: React.FC = () => {
           <Routes>
           {/* Splash Gateway */}
           <Route path="/" element={<SplashScreen />} />
+
+          {/* Direct Public Form Access Routes (Online Forms) */}
+          <Route path="/forms/:id" element={<PublicFormView />} />
+          <Route path="/public/forms/:id" element={<PublicFormView />} />
 
           {/* Foundation & Design System (Phase 1 Inspection) */}
           <Route element={<AppShell />}>
@@ -76,12 +103,15 @@ export const App: React.FC = () => {
           >
             <Route index element={<Navigate to="/citizen/home" replace />} />
             <Route path="home" element={<CitizenHome />} />
+            <Route path="forms" element={<CitizenFormsCatalog />} />
+            <Route path="forms/:id" element={<CitizenDynamicFormView />} />
             <Route path="intake" element={<CitizenAiIntake />} />
             <Route path="requests" element={<CitizenMyRequests />} />
             <Route path="requests/new" element={<CitizenNewRequest />} />
             <Route path="requests/:id" element={<CitizenCaseDetails />} />
             <Route path="blood" element={<CitizenBloodHub />} />
             <Route path="blood/new" element={<CitizenBloodHub />} />
+            <Route path="help" element={<CitizenHelp />} />
             <Route path="profile" element={<CitizenProfile />} />
           </Route>
 
@@ -103,11 +133,41 @@ export const App: React.FC = () => {
           >
             <Route index element={<Navigate to="/organization/dashboard" replace />} />
             <Route path="dashboard" element={<OrgDashboard />} />
+            <Route path="forms" element={<OrgFormsList />} />
+            <Route path="forms/new" element={<OrgFormBuilder />} />
+            <Route path="forms/:id/edit" element={<OrgFormBuilder />} />
+            <Route path="forms/:id/submissions" element={<OrgFormSubmissions />} />
             <Route path="requests" element={<OrgRequestQueue />} />
             <Route path="requests/:id" element={<OrgRequestDetails />} />
+            <Route path="requests/:id/timeline" element={<OrgTimelineExpanded />} />
             <Route path="team" element={<OrgTeam />} />
+            <Route path="team/new" element={<OrgAddTeamMember />} />
             <Route path="settings" element={<OrgSettings />} />
+            <Route path="profile" element={<OrgProfile />} />
+            <Route path="notifications" element={<OrgNotifications />} />
+            <Route path="performance" element={<OrgPerformance />} />
+            <Route path="sla" element={<OrgPerformance />} />
           </Route>
+
+          {/* Admin Portal Flow (Screens 1, 2, 3, 4 & 5 + Services & Settings) */}
+          <Route path="/admin" element={<AdminLanding />} />
+          <Route path="/admin/welcome" element={<AdminLanding />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/organizations" element={<AdminOrganizations />} />
+          <Route path="/admin/organizations/:id" element={<AdminOrgDetails />} />
+          <Route path="/admin/services" element={<AdminServices />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/admin/forms" element={<OrgFormsList />} />
+          <Route path="/admin/requests" element={<OrgRequestQueue />} />
+          <Route path="/admin/requests/:id" element={<OrgRequestDetails />} />
+          <Route path="/admin/requests/:id/timeline" element={<OrgTimelineExpanded />} />
+          <Route path="/admin/team" element={<OrgTeam />} />
+          <Route path="/admin/team/new" element={<OrgAddTeamMember />} />
+          <Route path="/admin/profile" element={<OrgProfile />} />
+          <Route path="/admin/notifications" element={<OrgNotifications />} />
+          <Route path="/admin/performance" element={<OrgPerformance />} />
+          <Route path="/admin/sla" element={<OrgPerformance />} />
 
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />

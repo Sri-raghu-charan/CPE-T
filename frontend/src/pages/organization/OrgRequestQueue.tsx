@@ -1,294 +1,405 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.js';
 import {
-  Card,
-  CardHeader,
-  CardContent,
-  Badge,
-  Button,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-  Input,
-  Tabs,
-  Skeleton,
-  EmptyState,
-} from '../../design-system/index.js';
-import { ArrowRight, Inbox, Clock, HeartHandshake, FileQuestion, AlertCircle } from 'lucide-react';
-import { CaseItem, CaseStatus } from '../../types/case.js';
-import { getSocket, joinOrgRoom, leaveOrgRoom } from '../../services/socket.js';
+  Search,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
+import { cn } from '../../design-system/utils.js';
+
+interface RequestItem {
+  id: string;
+  referenceNumber: string;
+  category: string;
+  priority: 'High' | 'Medium' | 'Low';
+  status: 'New' | 'Submitted' | 'In Progress' | 'Pending' | 'Waiting' | 'Escalated' | 'Resolved';
+  date: string;
+  assignedTo?: string;
+}
+
+type FilterTab = 'All' | 'New' | 'Submitted' | 'In Progress' | 'Waiting' | 'Resolved' | 'Escalated';
 
 export const OrgRequestQueue: React.FC = () => {
   const { user, token } = useAuth();
-  const orgId = user?.organizationId;
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [filter, setFilter] = useState('');
-  const [activeTab, setActiveTab] = useState('ALL');
-  const [cases, setCases] = useState<CaseItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<FilterTab>('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [assignedToFilter, setAssignedToFilter] = useState<string>('');
+  const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Sync tab with URL search params if present
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam) {
+      if (tabParam === 'new') setActiveTab('New');
+      else if (tabParam === 'submitted') setActiveTab('Submitted');
+      else if (tabParam === 'inProgress') setActiveTab('In Progress');
+      else if (tabParam === 'waiting') setActiveTab('Waiting');
+      else if (tabParam === 'escalated') setActiveTab('Escalated');
+      else if (tabParam === 'resolved') setActiveTab('Resolved');
+    }
+
+    const searchParam = searchParams.get('search');
+    if (searchParam) {
+      setSearchQuery(searchParam);
+    }
+
+    const assignedParam = searchParams.get('assignedTo');
+    if (assignedParam) {
+      setAssignedToFilter(assignedParam);
+    } else {
+      setAssignedToFilter('');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
+    const orgId = user?.organizationId;
     if (!orgId) {
-      setLoading(false);
+      setIsLoading(false);
       return;
     }
 
     async function fetchCases() {
-      setLoading(true);
       try {
+        setIsLoading(true);
         const queryParams = new URLSearchParams();
-        if (activeTab !== 'ALL') queryParams.set('status', activeTab);
-        if (filter) queryParams.set('search', filter);
+        if (searchQuery) queryParams.set('search', searchQuery);
 
         const res = await fetch(`/api/v1/cases/organization/${orgId}?${queryParams.toString()}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (res.ok) {
           const json = await res.json();
-          setCases(json.data || []);
+          if (json.data && Array.isArray(json.data)) {
+            const mapped: RequestItem[] = json.data.map((c: any) => {
+              let statusText: RequestItem['status'] = 'New';
+              if (c.status === 'IN_PROGRESS' || c.status === 'ASSIGNED') statusText = 'In Progress';
+              else if (c.status === 'SUBMITTED') statusText = 'Submitted';
+              else if (c.status === 'WAITING_FOR_USER' || c.status === 'ACKNOWLEDGED') statusText = 'Waiting';
+              else if (c.status === 'ESCALATED') statusText = 'Escalated';
+              else if (c.status === 'RESOLVED' || c.status === 'CLOSED') statusText = 'Resolved';
+
+              const pri: 'High' | 'Medium' | 'Low' =
+                c.priority === 'HIGH' || c.priority === 'URGENT' ? 'High' : c.priority === 'MEDIUM' ? 'Medium' : 'Low';
+
+              const d = new Date(c.createdAt || Date.now());
+              const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+              return {
+                id: c._id,
+                referenceNumber: c.referenceNumber || 'CPET-2026-1000',
+                category: c.category || 'Service Request',
+                priority: pri,
+                status: statusText,
+                date: `${dateStr}, ${timeStr}`,
+                assignedTo: c.assignedAgentName || c.assignedAgentId?.name || (c.assignedAgentId ? 'Assigned' : '—'),
+              };
+            });
+
+            setRequests(mapped);
+          } else {
+            setRequests([]);
+          }
         }
       } catch (err) {
-        console.error('Failed to load organization cases', err);
+        console.warn('Error loading organization cases', err);
+        setRequests([]);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     }
 
-    const timer = setTimeout(() => {
-      fetchCases();
-    }, 200);
+    fetchCases();
+  }, [user, token, searchQuery]);
 
-    return () => clearTimeout(timer);
-  }, [orgId, token, activeTab, filter]);
+  const filterTabs: FilterTab[] = ['All', 'New', 'Submitted', 'In Progress', 'Waiting', 'Resolved', 'Escalated'];
 
-  // Real-time live new case alerts via Socket.IO
-  useEffect(() => {
-    if (orgId) {
-      joinOrgRoom(orgId);
-      const socket = getSocket(token);
+  const filteredItems = requests.filter((item) => {
+    // Filter by Tab
+    if (activeTab === 'New' && item.status !== 'New') return false;
+    if (activeTab === 'Submitted' && item.status !== 'Submitted') return false;
+    if (activeTab === 'In Progress' && item.status !== 'In Progress') return false;
+    if (activeTab === 'Waiting' && item.status !== 'Waiting' && item.status !== 'Pending') return false;
+    if (activeTab === 'Resolved' && item.status !== 'Resolved') return false;
+    if (activeTab === 'Escalated' && item.status !== 'Escalated') return false;
 
-      const handleNewCase = (newCase: CaseItem) => {
-        setCases((prev) => {
-          if (prev.some((c) => c._id === newCase._id)) return prev;
-          if (activeTab === 'ALL' || activeTab === 'SUBMITTED') {
-            return [newCase, ...prev];
-          }
-          return prev;
-        });
-      };
-
-      socket.on('org:new_case', handleNewCase);
-
-      return () => {
-        socket.off('org:new_case', handleNewCase);
-        leaveOrgRoom(orgId);
-      };
+    // Filter by Assigned Officer if URL param set
+    if (assignedToFilter) {
+      if (!item.assignedTo || !item.assignedTo.toLowerCase().includes(assignedToFilter.toLowerCase())) {
+        return false;
+      }
     }
-  }, [orgId, token, activeTab]);
 
-  const getStatusBadge = (status: CaseStatus) => {
+    // Filter by Search Query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        item.referenceNumber.toLowerCase().includes(q) ||
+        item.category.toLowerCase().includes(q) ||
+        item.priority.toLowerCase().includes(q) ||
+        item.status.toLowerCase().includes(q) ||
+        (item.assignedTo && item.assignedTo.toLowerCase().includes(q))
+      );
+    }
+    return true;
+  });
+
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage) || 1;
+  const paginatedItems = filteredItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const clearAssignedFilter = () => {
+    setAssignedToFilter('');
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('assignedTo');
+    setSearchParams(newParams);
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'High':
+        return 'text-[#EF4444] font-medium';
+      case 'Medium':
+        return 'text-[#F59E0B] font-medium';
+      case 'Low':
+      default:
+        return 'text-[#10B981] font-medium';
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'SUBMITTED':
-        return <Badge variant="pending" size="sm">New</Badge>;
-      case 'ACKNOWLEDGED':
-        return <Badge variant="neutral" size="sm">Acknowledged</Badge>;
-      case 'ASSIGNED':
-        return <Badge variant="neutral" size="sm">Assigned</Badge>;
-      case 'IN_PROGRESS':
-        return <Badge variant="progress" size="sm">In Progress</Badge>;
-      case 'WAITING_FOR_USER':
-        return <Badge variant="critical" size="sm">Awaiting User</Badge>;
-      case 'WAITING_FOR_ORGANIZATION':
-        return <Badge variant="pending" size="sm">User Replied</Badge>;
-      case 'RESOLVED':
-        return <Badge variant="resolved" size="sm">Resolved</Badge>;
-      case 'CLOSED':
-        return <Badge variant="neutral" size="sm">Closed</Badge>;
-      case 'ESCALATED':
-        return <Badge variant="critical" size="sm">Escalated</Badge>;
+      case 'In Progress':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#FEF5E7] text-[#D97706]">
+            In Progress
+          </span>
+        );
+      case 'Submitted':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#F4EDFD] text-[#8B5CF6]">
+            Submitted
+          </span>
+        );
+      case 'Pending':
+      case 'Waiting':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#FEF9E7] text-[#D97706]">
+            {status}
+          </span>
+        );
+      case 'Escalated':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#FEEFEF] text-[#E11D48]">
+            Escalated
+          </span>
+        );
+      case 'Resolved':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#EDFBF3] text-[#10B981]">
+            Resolved
+          </span>
+        );
+      case 'New':
       default:
-        return <Badge variant="neutral" size="sm">{status}</Badge>;
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#EEF5FF] text-[#2563EB]">
+            New
+          </span>
+        );
     }
   };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'BLOOD_REQUEST':
-        return <HeartHandshake className="w-3.5 h-3.5 text-red-600" />;
-      case 'COMPLAINT':
-      case 'GRIEVANCE':
-        return <AlertCircle className="w-3.5 h-3.5 text-amber-600" />;
-      default:
-        return <FileQuestion className="w-3.5 h-3.5 text-blue-600" />;
-    }
-  };
-
-  const formatSla = (dueAtString?: string) => {
-    if (!dueAtString) return '48h SLA';
-    const due = new Date(dueAtString).getTime();
-    const now = Date.now();
-    const diffHours = Math.round((due - now) / (1000 * 3600));
-
-    if (diffHours < 0) {
-      return <span className="text-red-600 font-bold">SLA Breached ({Math.abs(diffHours)}h overdue)</span>;
-    }
-    return <span className="text-emerald-700">{diffHours} Hours Remaining</span>;
-  };
-
-  const tabItems = [
-    { id: 'ALL', label: 'All Cases' },
-    { id: 'SUBMITTED', label: 'New / Inbox' },
-    { id: 'IN_PROGRESS', label: 'In Progress' },
-    { id: 'WAITING_FOR_USER', label: 'Waiting Citizen' },
-    { id: 'WAITING_FOR_ORGANIZATION', label: 'User Replied' },
-    { id: 'RESOLVED', label: 'Resolved' },
-  ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Request Triage & Case Queue
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Universal triage inbox for incoming citizen requests routed to your organization tenant.
-          </p>
+    <div className="space-y-5">
+      
+      {/* 1. Top Search & Filter Bar */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search requests, categories, or assigned officers..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200/80 rounded-full text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-2xs"
+          />
         </div>
+
+        <button
+          type="button"
+          className="p-2.5 bg-white border border-slate-200/80 rounded-2xl text-slate-500 hover:text-slate-800 hover:border-slate-300 transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5"
+          title="Filter Options"
+        >
+          <Filter className="w-4 h-4" />
+        </button>
       </div>
 
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <Tabs
-              items={tabItems}
-              activeTab={activeTab}
-              onChange={(val) => setActiveTab(val)}
-            />
+      {/* Member Filter Pill */}
+      {assignedToFilter && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-2xl text-xs text-blue-900 font-medium">
+          <span>Filtering workload for: <strong className="text-blue-700">{assignedToFilter}</strong></span>
+          <button
+            onClick={clearAssignedFilter}
+            className="ml-auto text-xs font-bold text-blue-600 hover:text-blue-800 underline cursor-pointer"
+          >
+            Clear Filter
+          </button>
+        </div>
+      )}
 
-            <div className="w-full sm:w-72">
-              <Input
-                placeholder="Search reference, title, or citizen..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              />
-            </div>
+      {/* 2. Filter Tabs / Chips Bar */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {filterTabs.map((tab) => {
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => {
+                setActiveTab(tab);
+                setCurrentPage(1);
+              }}
+              className={cn(
+                'px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap',
+                isActive
+                  ? 'bg-[#2563EB] text-white shadow-sm shadow-blue-500/20'
+                  : 'bg-white border border-slate-200/80 text-slate-600 hover:bg-slate-50'
+              )}
+            >
+              {tab}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 3. Requests Table Card */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm shadow-blue-900/5 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                <th className="py-3 px-4 font-bold">ID</th>
+                <th className="py-3 px-4 font-bold">Category</th>
+                <th className="py-3 px-4 font-bold">Priority</th>
+                <th className="py-3 px-4 font-bold">Status</th>
+                <th className="py-3 px-4 font-bold">Assigned To</th>
+                <th className="py-3 px-4 font-bold">Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs font-medium">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    <span>Loading real-time requests...</span>
+                  </td>
+                </tr>
+              ) : paginatedItems.length > 0 ? (
+                paginatedItems.map((req) => (
+                  <tr
+                    key={req.id}
+                    onClick={() => navigate(`/organization/requests/${req.id}`)}
+                    className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                  >
+                    <td className="py-3.5 px-4 font-bold text-blue-600 group-hover:underline">
+                      {req.referenceNumber}
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-800">
+                      {req.category}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className={getPriorityColor(req.priority)}>
+                        {req.priority}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {getStatusBadge(req.status)}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className={req.assignedTo && req.assignedTo !== '—' ? 'text-slate-900 font-semibold' : 'text-slate-400'}>
+                        {req.assignedTo || '—'}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
+                      {req.date}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    No requests found matching the current filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* 4. Pagination Footer (Matching Screen 4: "1-7 of 7 requests" with "< 1 >") */}
+        <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <div>
+            <span>
+              {filteredItems.length === 0
+                ? '0-0 of 0 requests'
+                : `${(currentPage - 1) * itemsPerPage + 1}-${Math.min(
+                    currentPage * itemsPerPage,
+                    filteredItems.length
+                  )} of ${filteredItems.length} requests`}
+            </span>
           </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-3 py-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : cases.length === 0 ? (
-            <EmptyState
-              icon={<Inbox className="h-6 w-6 text-slate-400" />}
-              title="No Requests in Queue"
-              description={
-                filter
-                  ? `No requests match '${filter}'.`
-                  : `There are currently no cases matching filter '${activeTab}'.`
-              }
-            />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Reference ID</TableHead>
-                  <TableHead>Case Title</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Citizen Contact</TableHead>
-                  <TableHead>Assigned Agent</TableHead>
-                  <TableHead>SLA Window</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {cases.map((r) => {
-                  const citizenName =
-                    typeof r.requesterId === 'object' && r.requesterId?.name
-                      ? r.requesterId.name
-                      : r.requesterName || 'Dev Citizen';
 
-                  const agentName =
-                    typeof r.assignedAgentId === 'object' && r.assignedAgentId?.name
-                      ? r.assignedAgentId.name
-                      : r.assignedAgentName || 'Unassigned';
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
 
-                  return (
-                    <TableRow key={r._id}>
-                      <TableCell className="font-mono text-xs font-semibold text-slate-900">
-                        {r.referenceNumber}
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        <div className="font-semibold text-slate-900">{r.title}</div>
-                        {r.routing && (
-                          <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-500">
-                            <span className="font-mono uppercase font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
-                              {r.routing.destinationType}
-                            </span>
-                            {r.routing.department && (
-                              <span className="truncate max-w-[160px] text-slate-600">{r.routing.department}</span>
-                            )}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-[11px] text-slate-600 uppercase font-medium">
-                          {getTypeIcon(r.type)}
-                          <span>{r.type.replace('_', ' ')}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`text-xs font-semibold ${
-                            r.priority === 'HIGH' || r.priority === 'URGENT'
-                              ? 'text-red-700'
-                              : 'text-slate-700'
-                          }`}
-                        >
-                          {r.priority}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-600">{citizenName}</TableCell>
-                      <TableCell className="text-xs text-slate-600">{agentName}</TableCell>
-                      <TableCell className="text-xs font-mono font-medium">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          {formatSla(r.sla?.dueAt)}
-                        </div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(r.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <Link to={`/organization/requests/${r._id}`}>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                          >
-                            Triage
-                          </Button>
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+              <button
+                key={pageNum}
+                type="button"
+                onClick={() => setCurrentPage(pageNum)}
+                className={cn(
+                  'w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center',
+                  currentPage === pageNum
+                    ? 'bg-[#2563EB] text-white'
+                    : 'text-slate-600 hover:bg-slate-100'
+                )}
+              >
+                {pageNum}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+      </div>
+
     </div>
   );
 };

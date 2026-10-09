@@ -13,6 +13,7 @@ export interface UserProfile {
   name: string;
   email: string;
   phone?: string;
+  phoneNumber?: string;
   role: UserRole;
   organizationId?: string | null;
   organizationName?: string | null;

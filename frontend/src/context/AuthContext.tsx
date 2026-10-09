@@ -22,9 +22,11 @@ interface AuthContextType extends AuthState {
     address?: string;
     consent: { termsAccepted: boolean; termsVersion: string };
   }) => Promise<UserProfile>;
-  requestOtp: (target: string, purpose: string) => Promise<{ message: string }>;
+  requestOtp: (target: string, purpose: string) => Promise<{ message: string; devOtp?: string }>;
   verifyOtp: (target: string, otp: string, purpose: string) => Promise<UserProfile | null>;
-  resendOtp: (target: string, purpose: string) => Promise<{ message: string }>;
+  resendOtp: (target: string, purpose: string) => Promise<{ message: string; devOtp?: string }>;
+  resetPassword: (target: string, otp: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+  socialLogin: (data: { provider: 'GOOGLE' | 'APPLE'; email: string; name: string; role?: string }) => Promise<UserProfile>;
   updateProfile: (data: { name?: string; phone?: string }) => Promise<void>;
   logout: () => Promise<void>;
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
@@ -308,6 +310,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return json;
   };
 
+  const resetPassword = async (target: string, otp: string, newPassword: string) => {
+    const res = await fetch('/api/v1/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, otp, newPassword }),
+    });
+
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error?.message || 'Failed to reset password');
+    }
+
+    return json;
+  };
+
+  const socialLogin = async (data: { provider: 'GOOGLE' | 'APPLE'; email: string; name: string; role?: string }): Promise<UserProfile> => {
+    const res = await fetch('/api/v1/auth/social-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error?.message || `${data.provider} sign-in failed`);
+    }
+
+    const { accessToken, refreshToken } = json.data.tokens;
+    const profile = json.data.user;
+
+    localStorage.setItem('cpet_access_token', accessToken);
+    if (refreshToken) {
+      localStorage.setItem('cpet_refresh_token', refreshToken);
+    }
+    setToken(accessToken);
+    setUser(profile);
+    return profile;
+  };
+
   const updateProfile = async (data: { name?: string; phone?: string }) => {
     if (!token) throw new Error('Not authenticated');
 
@@ -361,6 +403,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         requestOtp,
         verifyOtp,
         resendOtp,
+        resetPassword,
+        socialLogin,
         updateProfile,
         logout,
         authFetch,

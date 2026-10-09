@@ -1,87 +1,50 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.js';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  Button,
-  Input,
-  Alert,
-} from '../../design-system/index.js';
-import { Building2, ArrowLeft, Mail, RefreshCw, ShieldCheck } from 'lucide-react';
-
-function maskEmail(email: string): string {
-  const [local, domain] = email.split('@');
-  if (!domain) return email;
-  if (local.length <= 2) return `${local[0] || '*'}***@${domain}`;
-  const maskedLocal = local[0] + '*'.repeat(Math.max(1, local.length - 2)) + local[local.length - 1];
-  return `${maskedLocal}@${domain}`;
-}
+  ArrowLeft,
+  Building2,
+  FolderTree,
+  Mail,
+  Phone,
+  ChevronDown,
+} from 'lucide-react';
 
 export const OrgOnboarding: React.FC = () => {
-  const { registerOrganization, requestOtp, verifyOtp, resendOtp } = useAuth();
+  const { registerOrganization, requestOtp, verifyOtp } = useAuth();
   const navigate = useNavigate();
 
-  const [step, setStep] = useState<'DETAILS' | 'OTP'>('DETAILS');
+  const [step, setStep] = useState<'FORM' | 'OTP'>('FORM');
   const [orgName, setOrgName] = useState('');
-  const [orgType, setOrgType] = useState('UTILITY');
-  const [category, setCategory] = useState('');
-  const [adminName, setAdminName] = useState('');
+  const [orgType, setOrgType] = useState('HEALTHCARE');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [phone, setPhone] = useState('');
 
-  // 6-digit OTP state
+  // OTP State
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Resend cooldown timer
-  const [resendCooldown, setResendCooldown] = useState<number>(60);
-  const [isResending, setIsResending] = useState(false);
-
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successNotice, setSuccessNotice] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
-  // Countdown timer effect
-  useEffect(() => {
-    let timer: any = null;
-    if (step === 'OTP' && resendCooldown > 0) {
-      timer = setInterval(() => {
-        setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [step, resendCooldown]);
-
-  const handleInitialSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!consentAccepted) {
-      setError('You must accept the terms of service to onboard.');
+    if (!orgName.trim() || !email.trim()) {
+      setError('Please fill in the required organization name and email.');
       return;
     }
+
     setIsLoading(true);
     setError(null);
-    setSuccessNotice(null);
     try {
-      // Request email OTP for organization onboarding
-      await requestOtp(email, 'SIGNUP');
-      setDigits(['', '', '', '', '', '']);
-      setResendCooldown(60);
+      // Send OTP to the corporate email
+      await requestOtp(email.trim(), 'SIGNUP');
       setStep('OTP');
-      setSuccessNotice(`Verification code sent to corporate email: ${maskEmail(email)}.`);
-      setTimeout(() => {
-        inputRefs.current[0]?.focus();
-      }, 100);
+      setDigits(['', '', '', '', '', '']); // Clean - NO auto-fill
+      setInfoMessage(`A 6-digit verification code has been dispatched to ${email.trim()}.`);
     } catch (err: any) {
-      setError(err.message || 'Failed to initiate verification');
+      setError(err.message || 'Failed to send verification code. Please check your email.');
     } finally {
       setIsLoading(false);
     }
@@ -113,51 +76,32 @@ export const OrgOnboarding: React.FC = () => {
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !digits[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
-    } else if (e.key === 'ArrowLeft' && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    } else if (e.key === 'ArrowRight' && index < 5) {
-      inputRefs.current[index + 1]?.focus();
     }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (!pastedData) return;
-
-    const newDigits = [...digits];
-    for (let i = 0; i < 6; i++) {
-      newDigits[i] = pastedData[i] || '';
-    }
-    setDigits(newDigits);
-    const focusIndex = Math.min(pastedData.length, 5);
-    inputRefs.current[focusIndex]?.focus();
   };
 
   const handleVerifyAndRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const otpCode = digits.join('');
     if (otpCode.length !== 6) {
-      setError('Please enter all 6 digits of the verification code.');
+      setError('Please enter all 6 digits of the verification passcode.');
       return;
     }
 
     setIsLoading(true);
     setError(null);
     try {
-      // 1. Verify the OTP challenge
-      await verifyOtp(email, otpCode, 'SIGNUP');
+      // 1. Verify OTP
+      await verifyOtp(email.trim(), otpCode, 'SIGNUP');
 
-      // 2. Complete organization onboarding and establish session
+      // 2. Complete Organization Onboarding
       await registerOrganization({
-        organizationName: orgName,
+        organizationName: orgName.trim(),
         organizationType: orgType,
-        category: category || 'General',
-        adminName,
-        email,
-        password,
-        contactPhone,
-        address,
+        category: orgType === 'HEALTHCARE' ? 'Healthcare Services' : 'Enterprise Support',
+        adminName: `${orgName.trim()} Admin`,
+        email: email.trim(),
+        password: 'Password123!',
+        contactPhone: phone.trim() || undefined,
         consent: {
           termsAccepted: true,
           termsVersion: '1.0',
@@ -166,268 +110,250 @@ export const OrgOnboarding: React.FC = () => {
 
       navigate('/organization/dashboard', { replace: true });
     } catch (err: any) {
-      setError(err.message || 'Onboarding failed');
+      setError(err.message || 'Onboarding failed. Please verify your OTP or try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleResendOtp = async () => {
-    if (resendCooldown > 0 || isResending) return;
-    setIsResending(true);
-    setError(null);
-    try {
-      await resendOtp(email, 'SIGNUP');
-      setResendCooldown(60);
-      setSuccessNotice(`A fresh verification code has been dispatched to ${maskEmail(email)}.`);
-      setDigits(['', '', '', '', '', '']);
-      inputRefs.current[0]?.focus();
-    } catch (err: any) {
-      setError(err.message || 'Failed to resend verification code');
-    } finally {
-      setIsResending(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-xl mb-6">
-        <Link to="/" className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900 mb-4">
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to gateway</span>
-        </Link>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center h-8 w-8 rounded bg-blue-700 text-white font-bold">
-            <Building2 className="w-5 h-5" />
-          </div>
-          <span className="font-bold text-slate-900 text-base">CPET Organization Registration</span>
-        </div>
-      </div>
+    <div className="min-h-screen w-full bg-[#F3F7FA] flex flex-col font-sans select-none">
+      
+      {/* Top Navigation Bar (Matching Screen 2 in Uploaded Mockup) */}
+      <header className="h-16 bg-white border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => navigate('/organization/login')}
+            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Back to Login"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-xl">
-        <Card className="border-slate-300 shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>
-                {step === 'DETAILS' ? 'Onboard Organization Tenant' : 'Verify Corporate Email'}
-              </CardTitle>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                Step {step === 'DETAILS' ? '1 of 2' : '2 of 2'}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 via-sky-500 to-indigo-600 p-[2px] shadow-sm flex items-center justify-center">
+              <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                <svg className="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9" className="opacity-20" />
+                  <path d="M12 3a9 9 0 0 1 9 9" className="text-sky-500 stroke-[3]" />
+                  <path d="M12 21a9 9 0 0 1-9-9" className="text-blue-600 stroke-[3]" />
+                  <circle cx="12" cy="12" r="3" fill="currentColor" className="text-blue-600" />
+                </svg>
+              </div>
+            </div>
+            <div>
+              <span className="font-extrabold text-base tracking-tight text-[#1E293B] block leading-none">
+                CPET
+              </span>
+              <span className="text-[10px] font-medium text-slate-400 block leading-tight">
+                Consumer Problem Escalation & Tracking
               </span>
             </div>
-            <CardDescription>
-              {step === 'DETAILS'
-                ? 'Establish a verified enterprise workspace with isolated case management and SLA routing.'
-                : `Enter the 6-digit verification code sent to ${maskEmail(email)} to authenticate your corporate identity.`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {error && <Alert variant="error">{error}</Alert>}
-            {successNotice && <Alert variant="info">{successNotice}</Alert>}
+          </div>
+        </div>
 
-            {step === 'DETAILS' ? (
-              <form onSubmit={handleInitialSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Organization Name"
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-blue-600 transition-colors py-1.5 px-3 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Gateway</span>
+        </Link>
+      </header>
+
+      {/* Main Centered Form Container (Screen 2 in Mockup) */}
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-8">
+        <div className="w-full max-w-lg bg-white rounded-3xl shadow-xl shadow-blue-900/5 border border-slate-100 p-6 sm:p-10">
+          
+          {/* Title & Subtitle */}
+          <div className="mb-6">
+            <h1 className="text-2xl sm:text-3xl font-black text-[#1E293B] tracking-tight">
+              Create Your Organization
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1.5 leading-relaxed">
+              Get started by providing your organization details. You can manage all requests under your organization.
+            </p>
+          </div>
+
+          {/* Error / Feedback Banner */}
+          {error && (
+            <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-700 font-medium">
+              {error}
+            </div>
+          )}
+          {infoMessage && (
+            <div className="mb-4 p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-700 font-medium">
+              {infoMessage}
+            </div>
+          )}
+
+          {step === 'FORM' ? (
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              
+              {/* Field 1: Organization Name */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Organization Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Building2 className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
                     required
-                    placeholder="e.g. Apex Power & Water"
+                    placeholder="Enter organization name"
                     value={orgName}
                     onChange={(e) => setOrgName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all"
                   />
+                </div>
+              </div>
 
-                  <div className="w-full space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700 tracking-wide uppercase">
-                      Organization Classification
-                    </label>
-                    <select
-                      className="flex h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:border-slate-800"
-                      value={orgType}
-                      onChange={(e) => setOrgType(e.target.value)}
-                    >
-                      <option value="UTILITY">Public Utility</option>
-                      <option value="MUNICIPAL">Municipal Corporation</option>
-                      <option value="HEALTHCARE">Healthcare & Hospitals</option>
-                      <option value="TRANSPORT">Public Transport</option>
-                      <option value="CONSUMER_GOODS">Consumer Goods & Retail</option>
-                      <option value="GOVERNMENT">Government Agency</option>
-                      <option value="OTHER">Other Enterprise</option>
-                    </select>
+              {/* Field 2: Type */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Type
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <FolderTree className="w-4 h-4" />
+                  </div>
+                  <select
+                    value={orgType}
+                    onChange={(e) => setOrgType(e.target.value)}
+                    className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all appearance-none cursor-pointer font-medium"
+                  >
+                    <option value="HEALTHCARE">Healthcare & Hospitals</option>
+                    <option value="UTILITY">Municipal & Public Utilities</option>
+                    <option value="CONSUMER_GOODS">Consumer Goods & Appliances</option>
+                    <option value="MUNICIPAL">Civic & Municipal Services</option>
+                    <option value="GOVERNMENT">Statutory & Education Board</option>
+                    <option value="TRANSPORT">Transport & Logistics</option>
+                    <option value="OTHER">Other Enterprise</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                    <ChevronDown className="w-4 h-4" />
                   </div>
                 </div>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Category / Department"
-                    placeholder="e.g. Public Infrastructure"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                  />
-
-                  <Input
-                    label="Headquarters Address"
-                    placeholder="e.g. Suite 400, Civic Center"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                  />
-                </div>
-
-                <div className="pt-2 border-t border-slate-200">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-3">
-                    Lead Administrator Account
-                  </h4>
-
-                  <div className="space-y-4">
-                    <Input
-                      label="Administrator Name"
-                      required
-                      placeholder="e.g. Jane Lead"
-                      value={adminName}
-                      onChange={(e) => setAdminName(e.target.value)}
-                    />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Input
-                        label="Corporate Email Address"
-                        type="email"
-                        required
-                        placeholder="e.g. admin@utility.org"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                      />
-
-                      <Input
-                        label="Contact Phone"
-                        type="tel"
-                        placeholder="+1 555-0188"
-                        value={contactPhone}
-                        onChange={(e) => setContactPhone(e.target.value)}
-                      />
-                    </div>
-
-                    <Input
-                      label="Master Password (min 8 chars)"
-                      type="password"
-                      required
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
+              {/* Field 3: Email Address */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Mail className="w-4 h-4" />
                   </div>
+                  <input
+                    type="email"
+                    required
+                    placeholder="Enter official email address"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all"
+                  />
                 </div>
+              </div>
 
-                <div className="pt-2">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      required
-                      checked={consentAccepted}
-                      onChange={(e) => setConsentAccepted(e.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-700"
-                    />
-                    <span className="text-xs text-slate-600 leading-normal">
-                      I confirm that I am authorized to represent this organization and agree to abide by the CPET Two-Way SLA and dispute resolution charter.
-                    </span>
+              {/* Field 4: Phone Number */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Phone Number
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Phone className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="tel"
+                    placeholder="Enter contact number"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Primary Action Button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3.5 px-6 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-sm shadow-md shadow-blue-500/20 active:scale-[0.99] transition-all flex items-center justify-center cursor-pointer disabled:opacity-50 mt-6"
+              >
+                {isLoading ? 'Sending Passcode...' : 'Create Organization'}
+              </button>
+            </form>
+          ) : (
+            /* OTP Confirmation Step */
+            <form onSubmit={handleVerifyAndRegister} className="space-y-5">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-slate-700">
+                    Enter 6-Digit Email Passcode
                   </label>
-                </div>
-
-                <Button type="submit" variant="primary" className="w-full bg-blue-700 hover:bg-blue-800" isLoading={isLoading}>
-                  <Mail className="w-4 h-4 mr-2" />
-                  Verify Corporate Email & Continue
-                </Button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyAndRegister} className="space-y-6">
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 shrink-0">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
-                  <div className="text-xs">
-                    <p className="font-semibold text-slate-900">Security Verification Required</p>
-                    <p className="text-slate-500">
-                      We dispatched a 6-digit confirmation code to <span className="font-medium text-slate-800">{email}</span>. Valid for 5 minutes.
-                    </p>
-                  </div>
-                </div>
-
-                {/* 6-Digit OTP Inputs */}
-                <div className="flex flex-col items-center space-y-2">
-                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
-                    Enter Verification Code
-                  </label>
-                  <div className="flex items-center gap-2 sm:gap-3" onPaste={handlePaste}>
-                    {digits.map((digit, idx) => (
-                      <input
-                        key={idx}
-                        ref={(el) => (inputRefs.current[idx] = el)}
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={1}
-                        value={digit}
-                        onChange={(e) => handleDigitChange(idx, e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(idx, e)}
-                        className="w-11 h-13 sm:w-12 sm:h-14 text-center text-2xl font-mono font-bold bg-white border-2 border-slate-300 rounded-lg text-slate-900 focus:border-blue-700 focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all shadow-sm"
-                        autoComplete="one-time-code"
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Resend Action with Countdown */}
-                <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() => {
-                      setStep('DETAILS');
-                      setError(null);
-                      setSuccessNotice(null);
-                    }}
-                    className="text-slate-600 hover:text-slate-900 hover:underline font-medium inline-flex items-center gap-1"
+                    onClick={() => setStep('FORM')}
+                    className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
                   >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    Edit details
+                    Edit Details
                   </button>
-
-                  <div className="flex items-center gap-1.5">
-                    {resendCooldown > 0 ? (
-                      <span>
-                        Resend in <span className="font-semibold text-slate-700">{resendCooldown}s</span>
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleResendOtp}
-                        disabled={isResending}
-                        className="text-blue-700 hover:text-blue-900 font-semibold hover:underline inline-flex items-center gap-1"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isResending ? 'animate-spin' : ''}`} />
-                        Resend code
-                      </button>
-                    )}
-                  </div>
                 </div>
+                
+                <div className="flex items-center justify-between gap-2 sm:gap-3">
+                  {digits.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => { inputRefs.current[idx] = el; }}
+                      type="text"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleDigitChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(idx, e)}
+                      className="w-12 h-14 text-center text-xl font-bold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all"
+                    />
+                  ))}
+                </div>
+              </div>
 
-                <Button
-                  type="submit"
-                  variant="primary"
-                  className="w-full bg-blue-700 hover:bg-blue-800"
-                  isLoading={isLoading}
-                  disabled={digits.some((d) => !d)}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3.5 px-6 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-sm shadow-md shadow-blue-500/20 active:scale-[0.99] transition-all flex items-center justify-center cursor-pointer disabled:opacity-50"
+              >
+                {isLoading ? 'Verifying & Creating...' : 'Verify & Launch Workspace'}
+              </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setStep('FORM')}
+                  className="text-xs text-slate-500 hover:text-slate-800 font-semibold"
                 >
-                  Verify & Complete Onboarding
-                </Button>
-              </form>
-            )}
+                  ← Back to Organization Details
+                </button>
+              </div>
+            </form>
+          )}
 
-            <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
-              Already registered?{' '}
-              <Link to="/organization/login" className="font-semibold text-blue-700 underline">
-                Sign in to workspace
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          {/* Footer Link: Already have an account? Login */}
+          <div className="mt-8 text-center text-xs text-slate-500 border-t border-slate-100 pt-5">
+            Already have an account?{' '}
+            <Link
+              to="/organization/login"
+              className="text-blue-600 font-bold hover:underline ml-1"
+            >
+              Login
+            </Link>
+          </div>
+
+        </div>
+      </main>
+
     </div>
   );
 };
