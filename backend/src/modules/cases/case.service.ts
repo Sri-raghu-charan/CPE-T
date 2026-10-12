@@ -832,9 +832,19 @@ export class CaseService {
 
     let targetCase: any = null;
     if (isDb) {
-      targetCase = await CaseModel.findById(caseId).lean();
+      if (Types.ObjectId.isValid(caseId)) {
+        targetCase = await CaseModel.findById(caseId).lean();
+      }
+      if (!targetCase) {
+        targetCase = await CaseModel.findOne({ referenceNumber: caseId }).lean();
+      }
     } else {
       targetCase = memoryStore.cases.get(caseId);
+      if (!targetCase) {
+        targetCase = Array.from(memoryStore.cases.values()).find(
+          (c) => c.referenceNumber === caseId
+        );
+      }
     }
 
     if (!targetCase) {
@@ -1011,11 +1021,20 @@ export class CaseService {
     let events: any[] = [];
 
     if (isDb) {
-      targetCase = await CaseModel.findById(caseId)
-        .populate('requesterId', 'name email phone')
-        .populate('organizationId', 'name slug category type settings')
-        .populate('assignedAgentId', 'name email')
-        .lean();
+      if (Types.ObjectId.isValid(caseId)) {
+        targetCase = await CaseModel.findById(caseId)
+          .populate('requesterId', 'name email phone')
+          .populate('organizationId', 'name slug category type settings')
+          .populate('assignedAgentId', 'name email')
+          .lean();
+      }
+      if (!targetCase) {
+        targetCase = await CaseModel.findOne({ referenceNumber: caseId })
+          .populate('requesterId', 'name email phone')
+          .populate('organizationId', 'name slug category type settings')
+          .populate('assignedAgentId', 'name email')
+          .lean();
+      }
 
       if (!targetCase) {
         throw new NotFoundError(`Case '${caseId}' not found`);
@@ -1031,11 +1050,16 @@ export class CaseService {
     } else {
       targetCase = memoryStore.cases.get(caseId);
       if (!targetCase) {
+        targetCase = Array.from(memoryStore.cases.values()).find(
+          (c) => c.referenceNumber === caseId
+        );
+      }
+      if (!targetCase) {
         throw new NotFoundError(`Case '${caseId}' not found`);
       }
 
       const isCitizen = user.role === 'CITIZEN' || user.role === 'DONOR';
-      const allEvents = memoryStore.caseEvents.get(caseId) || [];
+      const allEvents = memoryStore.caseEvents.get(targetCase._id) || [];
       events = isCitizen ? allEvents.filter((e) => !e.isInternal) : allEvents;
     }
 
@@ -1076,7 +1100,12 @@ export class CaseService {
    */
   public async getCasesForCitizen(
     citizenId: string,
-    filters?: { tab?: 'active' | 'pending' | 'resolved' | 'closed'; search?: string }
+    filters?: {
+      tab?: 'active' | 'pending' | 'resolved' | 'closed';
+      search?: string;
+      page?: number | string;
+      limit?: number | string;
+    }
   ) {
     const isDb =
       memoryStore.isDbConnected() &&
@@ -1088,6 +1117,10 @@ export class CaseService {
       resolved: ['RESOLVED'],
       closed: ['CLOSED', 'CANCELLED', 'FAILED'],
     };
+
+    const page = Math.max(Number(filters?.page) || 1, 1);
+    const limit = Math.min(Number(filters?.limit) || 20, 50);
+    const skip = (page - 1) * limit;
 
     if (isDb) {
       const query: any = { requesterId: new Types.ObjectId(citizenId) };
@@ -1106,6 +1139,8 @@ export class CaseService {
       const cases = await CaseModel.find(query)
         .populate('organizationId', 'name slug type')
         .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
         .lean();
 
       return cases;
@@ -1129,7 +1164,85 @@ export class CaseService {
         );
       }
 
-      return cases.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const sorted = cases.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      return sorted.slice(skip, skip + limit);
+    }
+  }
+
+  /**
+   * Retrieves global case metrics for the central administrative overview.
+   */
+  public async getAdminMetrics(): Promise<any> {
+    const isDb =
+      memoryStore.isDbConnected() &&
+      (mongoose.connection.readyState === 1 || Boolean((CaseModel.countDocuments as any)?._isMockFunction));
+
+    if (isDb) {
+      const [totalCases, resolvedCases, closedCases, inProgressCases, escalatedCases, pendingCases] =
+        await Promise.all([
+          CaseModel.countDocuments(),
+          CaseModel.countDocuments({ status: 'RESOLVED' }),
+          CaseModel.countDocuments({ status: 'CLOSED' }),
+          CaseModel.countDocuments({ status: { $in: ['IN_PROGRESS', 'ASSIGNED'] } }),
+          CaseModel.countDocuments({ status: 'ESCALATED' }),
+          CaseModel.countDocuments({
+            status: {
+              $in: ['SUBMITTED', 'ACKNOWLEDGED', 'WAITING_FOR_USER', 'WAITING_FOR_ORGANIZATION'],
+            },
+          }),
+        ]);
+
+      return {
+        totalCases,
+        openCases: pendingCases + inProgressCases + escalatedCases,
+        resolvedCases,
+        closedCases,
+        inProgressCases,
+        escalatedCases,
+        breachedCases: escalatedCases,
+        pendingCases,
+        casesByPriority: {
+          URGENT: 0,
+          HIGH: 0,
+          MEDIUM: 0,
+          LOW: 0,
+        },
+      };
+    } else {
+      const allCases = Array.from(memoryStore.cases.values());
+      const totalCases = allCases.length;
+      const resolvedCases = allCases.filter((c) => c.status === 'RESOLVED').length;
+      const closedCases = allCases.filter((c) => c.status === 'CLOSED').length;
+      const inProgressCases = allCases.filter(
+        (c) => c.status === 'IN_PROGRESS' || c.status === 'ASSIGNED'
+      ).length;
+      const escalatedCases = allCases.filter(
+        (c) => c.status === 'ESCALATED' || (c.sla && (c.sla as any).isEscalated)
+      ).length;
+      const pendingCases = allCases.filter(
+        (c) =>
+          c.status === 'SUBMITTED' ||
+          c.status === 'ACKNOWLEDGED' ||
+          c.status === 'WAITING_FOR_USER' ||
+          c.status === 'WAITING_FOR_ORGANIZATION'
+      ).length;
+
+      return {
+        totalCases,
+        openCases: pendingCases + inProgressCases + escalatedCases,
+        resolvedCases,
+        closedCases,
+        inProgressCases,
+        escalatedCases,
+        breachedCases: escalatedCases,
+        pendingCases,
+        casesByPriority: {
+          URGENT: allCases.filter((c) => c.priority === 'URGENT').length,
+          HIGH: allCases.filter((c) => c.priority === 'HIGH').length,
+          MEDIUM: allCases.filter((c) => c.priority === 'MEDIUM').length,
+          LOW: allCases.filter((c) => c.priority === 'LOW').length,
+        },
+      };
     }
   }
 

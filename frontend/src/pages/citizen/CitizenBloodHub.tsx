@@ -715,7 +715,7 @@ export const CitizenBloodHub: React.FC = () => {
         setContactAlertSent(null);
         setContactRelayMsg('');
       }, 2500);
-    } catch (e) {
+    } catch {
       setContactAlertSent(`Alert sent to donor network.`);
       setTimeout(() => {
         setContactModalOpen(false);

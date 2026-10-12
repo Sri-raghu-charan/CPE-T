@@ -114,7 +114,7 @@ export class AiService {
       structuredData: entities.structuredData,
       location,
       isComplete,
-      nextClarification,
+      nextClarification: nextClarification || null,
       conversationHistory: history,
     };
 
@@ -469,7 +469,19 @@ export class AiService {
       location.pincode = pincodeMatch[0];
     }
 
-    const knownCities = ['Metro City', 'Hyderabad', 'Bangalore', 'Mumbai', 'Delhi', 'Chennai', 'Pune'];
+    const knownCities = [
+      'Metro City',
+      'Hyderabad',
+      'Rajahmundry',
+      'Kakinada',
+      'Vijayawada',
+      'Visakhapatnam',
+      'Bangalore',
+      'Mumbai',
+      'Delhi',
+      'Chennai',
+      'Pune',
+    ];
     for (const city of knownCities) {
       if (text.toLowerCase().includes(city.toLowerCase())) {
         location.city = city;

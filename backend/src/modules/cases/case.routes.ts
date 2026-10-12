@@ -39,6 +39,16 @@ caseRouter.get(
 );
 
 /**
+ * GET /api/v1/cases/admin/metrics
+ * Central administrative metrics across all universal cases
+ */
+caseRouter.get(
+  '/admin/metrics',
+  authorize('CPET_ADMIN', 'SUPER_ADMIN'),
+  caseController.getAdminMetrics
+);
+
+/**
  * GET /api/v1/cases/:id
  * Retrieve case details, full audit timeline, and contextual allowed transitions
  */

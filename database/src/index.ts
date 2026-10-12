@@ -11,3 +11,5 @@ export * from './models/destination.model.js';
 export * from './models/notification.model.js';
 export * from './models/donor.model.js';
 export * from './models/sla-policy.model.js';
+export * from './models/form.model.js';
+export * from './models/form-submission.model.js';

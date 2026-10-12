@@ -59,7 +59,7 @@ export const aiExtractedCaseSchema = z.object({
     pincode: z.string().optional(),
   }),
   isComplete: z.boolean(),
-  nextClarification: clarificationSchema.nullable(),
+  nextClarification: clarificationSchema.nullable().optional(),
   conversationHistory: z.array(
     z.object({
       role: z.enum(['user', 'assistant']),

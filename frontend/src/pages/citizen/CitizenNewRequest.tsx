@@ -232,7 +232,7 @@ export const CitizenNewRequest: React.FC<{ defaultType?: CaseType }> = () => {
       } else {
         navigate('/citizen/requests');
       }
-    } catch (err: any) {
+    } catch {
       navigate('/citizen/requests');
     } finally {
       setSubmitting(false);

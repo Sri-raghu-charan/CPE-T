@@ -91,6 +91,7 @@ export const CitizenAiIntake: React.FC = () => {
     if (initialQuery.trim()) {
       handleAnalyzeText(initialQuery.trim());
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 
   useEffect(() => {
@@ -760,7 +761,7 @@ export const CitizenAiIntake: React.FC = () => {
         setSubmittedCaseId('CPET-2026-44537');
       }
       setActiveStep('SUBMITTED');
-    } catch (err: any) {
+    } catch {
       setSubmittedCaseId('CPET-2026-44537');
       setActiveStep('SUBMITTED');
     } finally {

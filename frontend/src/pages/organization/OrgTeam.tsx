@@ -93,6 +93,7 @@ export const OrgTeam: React.FC = () => {
 
   useEffect(() => {
     fetchMembers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, token]);
 
   // Toggle member Active / Inactive status

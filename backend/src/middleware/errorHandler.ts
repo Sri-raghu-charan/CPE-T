@@ -12,8 +12,9 @@ export function errorHandler(
 ): void {
   const correlationId = req.correlationId || 'unknown';
 
-  if (err instanceof ZodError) {
-    const message = err.errors.map((e) => e.message).join(', ') || 'Validation error';
+  if (err instanceof ZodError || (err as any)?.name === 'ZodError') {
+    const zodErr = err as ZodError;
+    const message = zodErr.errors?.map((e) => e.message).join(', ') || 'Validation error';
     logger.warn(`Validation error: ${message}`, {
       correlationId,
       path: req.originalUrl,
@@ -24,7 +25,7 @@ export function errorHandler(
       error: {
         code: 'VALIDATION_ERROR',
         message,
-        details: err.errors,
+        details: zodErr.errors,
         correlationId,
       },
     });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -150,9 +150,48 @@ export const ADMIN_ORGANIZATIONS_DATA: OrgListItem[] = [
 export const AdminOrganizations: React.FC = () => {
   const navigate = useNavigate();
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [organizations, setOrganizations] = useState<OrgListItem[]>(ADMIN_ORGANIZATIONS_DATA);
   const [activeTab, setActiveTab] = useState<'All' | 'Active' | 'Pending' | 'Suspended'>('All');
-  const [organizations] = useState<OrgListItem[]>(ADMIN_ORGANIZATIONS_DATA);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    async function loadLiveOrgs() {
+      try {
+        const token = localStorage.getItem('cpet_access_token');
+        const res = await fetch('/api/v1/organizations', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            const liveMapped: OrgListItem[] = json.data.map((o: any, idx: number) => ({
+              id: o._id || o.id || `live-org-${idx}`,
+              name: o.name,
+              category: o.category || 'Public Authority',
+              serviceCount: (o.services || []).length || 5,
+              status: 'Active',
+              icon: Building2,
+              iconBg: 'bg-blue-100',
+              iconColor: 'text-blue-600',
+              location: o.address || 'Andhra Pradesh',
+              email: o.contactEmail || 'contact@cpet.org',
+              phone: o.contactPhone || '+91 94940 12345',
+              slaDeadline: `${o.settings?.defaultSlaHours || 48} hours`,
+            }));
+
+            setOrganizations((prev) => {
+              const names = new Set(liveMapped.map((m) => m.name.toLowerCase()));
+              const filteredPrev = prev.filter((p) => !names.has(p.name.toLowerCase()));
+              return [...liveMapped, ...filteredPrev];
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch live organizations', err);
+      }
+    }
+    loadLiveOrgs();
+  }, []);
 
   const filteredOrgs = organizations.filter((org) => {
     if (activeTab !== 'All' && org.status !== activeTab) return false;

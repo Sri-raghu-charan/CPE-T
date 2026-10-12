@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext.js';
 import {
   ArrowLeft,
   ChevronDown,
@@ -14,6 +15,7 @@ import {
 
 export const OrgSettings: React.FC = () => {
   const navigate = useNavigate();
+  const { user, token } = useAuth();
 
   const [slaHours, setSlaHours] = useState('48');
   const [autoAssign, setAutoAssign] = useState(true);
@@ -24,6 +26,47 @@ export const OrgSettings: React.FC = () => {
     inApp: true,
   });
   const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadSettings() {
+      if (!user?.organizationId) return;
+      try {
+        const res = await fetch(`/api/v1/organizations/${user.organizationId}/settings`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data?.settings) {
+            if (json.data.settings.defaultSlaHours) {
+              setSlaHours(String(json.data.settings.defaultSlaHours));
+            }
+            if (json.data.settings.autoAssign !== undefined) {
+              setAutoAssign(Boolean(json.data.settings.autoAssign));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load org settings from backend', err);
+      }
+    }
+    loadSettings();
+  }, [user?.organizationId, token]);
+
+  const updateBackendSettings = async (updates: { autoAssign?: boolean; defaultSlaHours?: number }) => {
+    if (!user?.organizationId) return;
+    try {
+      await fetch(`/api/v1/organizations/${user.organizationId}/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(updates),
+      });
+    } catch (err) {
+      console.warn('Could not persist org settings', err);
+    }
+  };
 
   const categories = [
     { name: 'Water Supply', desc: 'Pipelines, pressure, leakage, quality' },
@@ -98,8 +141,10 @@ export const OrgSettings: React.FC = () => {
             <select
               value={slaHours}
               onChange={(e) => {
-                setSlaHours(e.target.value);
-                setToast(`Standard SLA updated to ${e.target.value} hours`);
+                const val = e.target.value;
+                setSlaHours(val);
+                updateBackendSettings({ defaultSlaHours: Number(val) });
+                setToast(`Standard SLA updated to ${val} hours`);
                 setTimeout(() => setToast(null), 2500);
               }}
               className="w-full p-3 bg-slate-50/70 border border-slate-200 rounded-2xl text-xs sm:text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 appearance-none cursor-pointer"
@@ -129,8 +174,10 @@ export const OrgSettings: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              setAutoAssign(!autoAssign);
-              setToast(autoAssign ? 'Auto assignment disabled' : 'Auto assignment enabled');
+              const nextVal = !autoAssign;
+              setAutoAssign(nextVal);
+              updateBackendSettings({ autoAssign: nextVal });
+              setToast(nextVal ? 'Auto assignment enabled' : 'Auto assignment disabled');
               setTimeout(() => setToast(null), 2500);
             }}
             className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${

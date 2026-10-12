@@ -8,6 +8,8 @@ import { aiRouter } from '../modules/ai/routes.js';
 import { routingRouter } from '../modules/routing/routes.js';
 import { domainRouter, bloodRouter } from '../modules/domains/domain.routes.js';
 import { slaRouter } from '../modules/sla/sla.routes.js';
+import { formsRouter } from '../modules/forms/forms.routes.js';
+import { notificationsRouter } from '../modules/notifications/notification.routes.js';
 import {
   authRateLimiter,
   aiRateLimiter,
@@ -35,4 +37,6 @@ apiV1Router.use('/routing', publicSearchRateLimiter, routingRouter);
 apiV1Router.use('/domains', fastCache(60), domainRouter);
 apiV1Router.use('/blood', bloodRouter);
 apiV1Router.use('/sla', slaRouter);
+apiV1Router.use('/forms', formsRouter);
+apiV1Router.use('/notifications', notificationsRouter);
 

@@ -128,9 +128,20 @@ export class SocketManager {
         try {
           let caseDoc: any = null;
           if (memoryStore.isDbConnected()) {
-            caseDoc = await CaseModel.findById(caseId).lean();
+            const { Types } = await import('mongoose');
+            if (Types.ObjectId.isValid(caseId)) {
+              caseDoc = await CaseModel.findById(caseId).lean();
+            }
+            if (!caseDoc) {
+              caseDoc = await CaseModel.findOne({ referenceNumber: caseId }).lean();
+            }
           } else {
             caseDoc = memoryStore.cases.get(caseId);
+            if (!caseDoc) {
+              caseDoc = Array.from(memoryStore.cases.values()).find(
+                (c) => c.referenceNumber === caseId
+              );
+            }
           }
 
           if (!caseDoc) {

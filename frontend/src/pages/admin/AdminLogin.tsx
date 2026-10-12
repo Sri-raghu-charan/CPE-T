@@ -151,7 +151,7 @@ export const AdminLogin: React.FC = () => {
 
       setSocialModalOpen(false);
       navigate('/admin/dashboard', { replace: true });
-    } catch (err: any) {
+    } catch {
       // In dev fallback, allow direct navigation
       setSocialModalOpen(false);
       navigate('/admin/dashboard', { replace: true });

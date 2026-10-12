@@ -143,4 +143,21 @@ describe('Phase 4 — AI-First Intake, Conversational Forms & Voice Architecture
     expect(data).toHaveProperty('summary');
     expect(data).toHaveProperty('intent');
   });
+
+  it('7. Single-turn Complete Input: extracts all entities and marks complete without error', async () => {
+    const res = await request(app)
+      .post('/api/v1/ai/analyze')
+      .send({
+        message: 'My Lloyd split AC is blowing warm air and making a loud rattling sound in Rajahmundry',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    const data = res.body.data;
+    expect(data.intent).toBe('SERVICE_REQUEST');
+    expect(data.organization.matchedName).toContain('Lloyd');
+    expect(data.location.city).toBe('Rajahmundry');
+    expect(data.nextClarification).toBeNull();
+  });
 });
+

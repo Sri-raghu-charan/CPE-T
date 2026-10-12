@@ -223,6 +223,8 @@ class MemoryStore {
   public caseEvents = new Map<string, MemoryCaseEvent[]>(); // keyed by caseId
   public donors = new Map<string, MemoryDonor>();
   public slaPolicies = new Map<string, any>();
+  public forms = new Map<string, any>();
+  public formSubmissions = new Map<string, any>();
 
   constructor() {
     this.seedDefaults();
@@ -1095,6 +1097,63 @@ class MemoryStore {
       active: true,
       createdAt: new Date(),
       updatedAt: new Date(),
+    });
+
+    // Seed Initial Dynamic Forms for Public Portal & Tenant Workspaces
+    const form1Id = '66d000000000000000000031';
+    this.forms.set(form1Id, {
+      _id: form1Id,
+      organizationId: orgId,
+      organizationName: 'Apex Power & Water',
+      title: 'Drinking Water Pipeline Leakage & Contamination Report',
+      slug: 'pipeline-leakage-report',
+      description: 'Report broken pipeline, municipal water leakage, low pressure, or contaminated water delivery.',
+      category: 'Water Supply',
+      department: 'DEP-APX-WATER',
+      isPublic: true,
+      status: 'PUBLISHED',
+      slaHours: 24,
+      priority: 'HIGH',
+      fields: [
+        { id: 'f1', name: 'location', label: 'Exact Landmark / Ward / Street', type: 'text', required: true, order: 1 },
+        { id: 'f2', name: 'leakageType', label: 'Type of Issue', type: 'select', required: true, options: ['Major Main Line Burst', 'Distribution Pipe Leak', 'Contaminated Murky Water', 'Zero Water Pressure'], order: 2 },
+        { id: 'f3', name: 'severity', label: 'Impact on Residents', type: 'radio', required: true, options: ['Affecting entire street', 'Affecting multiple houses', 'Single house connection'], order: 3 },
+        { id: 'f4', name: 'description', label: 'Detailed Description', type: 'textarea', required: true, order: 4 },
+      ],
+      submitButtonText: 'Submit Water Service Ticket',
+      successMessage: 'Your pipeline repair ticket has been registered. Field engineers will inspect within SLA window.',
+      submissionsCount: 14,
+      publishedAt: new Date('2026-09-01'),
+      createdAt: new Date('2026-09-01'),
+      updatedAt: new Date('2026-09-01'),
+    });
+
+    const form2Id = '66d000000000000000000032';
+    this.forms.set(form2Id, {
+      _id: form2Id,
+      organizationId: lloydOrgId,
+      organizationName: 'Lloyd (Havells Consumer Appliances)',
+      title: 'Havells-Lloyd Home Appliance Repair & Service Request',
+      slug: 'lloyd-ac-service-request',
+      description: 'Request technician visit for air conditioners, refrigerators, washing machines, or seasonal servicing.',
+      category: 'Consumer Appliance & Utilities',
+      department: 'DEP-LLD-TECH',
+      isPublic: true,
+      status: 'PUBLISHED',
+      slaHours: 48,
+      priority: 'MEDIUM',
+      fields: [
+        { id: 'f1', name: 'applianceType', label: 'Appliance Model / Category', type: 'select', required: true, options: ['Split Inverter AC', 'Window AC', 'Double Door Refrigerator', 'Washing Machine'], order: 1 },
+        { id: 'f2', name: 'issueType', label: 'Primary Issue', type: 'select', required: true, options: ['Not Cooling / Warm Air', 'Loud Noise / Vibration', 'Water Dripping Indoors', 'Power / Trip Issue'], order: 2 },
+        { id: 'f3', name: 'preferredSlot', label: 'Preferred Technician Visit Window', type: 'select', required: true, options: ['Morning (9 AM - 1 PM)', 'Afternoon (1 PM - 5 PM)', 'Evening (5 PM - 8 PM)'], order: 3 },
+        { id: 'f4', name: 'address', label: 'Installation Address & City', type: 'textarea', required: true, order: 4 },
+      ],
+      submitButtonText: 'Book Appliance Service',
+      successMessage: 'Service booking confirmed. An authorized Havells technician will reach out for on-site visit.',
+      submissionsCount: 28,
+      publishedAt: new Date('2026-09-05'),
+      createdAt: new Date('2026-09-05'),
+      updatedAt: new Date('2026-09-05'),
     });
   }
 
