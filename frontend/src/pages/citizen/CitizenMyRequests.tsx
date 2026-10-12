@@ -271,6 +271,7 @@ export const CitizenMyRequests: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/citizen/home')}
+            aria-label="Back to home"
             className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />

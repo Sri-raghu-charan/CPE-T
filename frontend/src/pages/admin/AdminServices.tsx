@@ -172,6 +172,7 @@ export const AdminServices: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/admin/dashboard')}
+            aria-label="Back to dashboard"
             className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -214,7 +215,7 @@ export const AdminServices: React.FC = () => {
             <Check className="w-4 h-4 text-emerald-600" />
             <span>{showToast}</span>
           </div>
-          <button onClick={() => setShowToast(null)} className="text-emerald-500 hover:text-emerald-800">
+          <button onClick={() => setShowToast(null)} aria-label="Dismiss toast" className="text-emerald-500 hover:text-emerald-800">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -230,6 +231,7 @@ export const AdminServices: React.FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search services or departments..."
+          aria-label="Search services or departments"
           className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200/90 rounded-2xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 shadow-2xs"
         />
         {searchQuery && (
@@ -307,6 +309,7 @@ export const AdminServices: React.FC = () => {
                   onClick={() => setEditingService(svc)}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                   title="Edit SLA"
+                  aria-label={`Edit ${svc.name} SLA`}
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                 </button>
@@ -315,6 +318,9 @@ export const AdminServices: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleToggle(svc.id)}
+                  role="switch"
+                  aria-checked={svc.enabled}
+                  aria-label={`Toggle ${svc.name} active status`}
                   className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${
                     svc.enabled ? 'bg-blue-600' : 'bg-slate-300'
                   }`}
@@ -349,6 +355,7 @@ export const AdminServices: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setEditingService(null)}
+                aria-label="Close edit SLA modal"
                 className="p-1 rounded-full text-slate-400 hover:text-slate-700"
               >
                 <X className="w-5 h-5" />

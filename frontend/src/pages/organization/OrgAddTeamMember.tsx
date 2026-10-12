@@ -81,6 +81,7 @@ export const OrgAddTeamMember: React.FC = () => {
         <button
           type="button"
           onClick={() => navigate('/organization/team')}
+          aria-label="Back to team"
           className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -98,7 +99,7 @@ export const OrgAddTeamMember: React.FC = () => {
             <Check className="w-4 h-4 text-emerald-600" />
             <span>{toast}</span>
           </div>
-          <button onClick={() => setToast(null)} className="text-emerald-500 hover:text-emerald-800">
+          <button onClick={() => setToast(null)} aria-label="Dismiss toast" className="text-emerald-500 hover:text-emerald-800">
             <X className="w-4 h-4" />
           </button>
         </div>

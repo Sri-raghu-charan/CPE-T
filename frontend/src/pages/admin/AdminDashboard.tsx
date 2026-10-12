@@ -110,6 +110,7 @@ export const AdminDashboard: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowDrawer(!showDrawer)}
+            aria-label="Toggle navigation menu"
             className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-700 cursor-pointer"
             title="Menu"
           >
@@ -155,6 +156,7 @@ export const AdminDashboard: React.FC = () => {
                 </div>
                 <button
                   onClick={() => setShowDrawer(false)}
+                  aria-label="Close navigation menu"
                   className="p-1 text-slate-400 hover:text-slate-700"
                 >
                   <X className="w-5 h-5" />

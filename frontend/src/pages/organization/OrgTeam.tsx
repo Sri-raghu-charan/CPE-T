@@ -207,6 +207,7 @@ export const OrgTeam: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/organization/dashboard')}
+            aria-label="Back to dashboard"
             className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -239,7 +240,7 @@ export const OrgTeam: React.FC = () => {
             <Check className="w-4 h-4 text-emerald-600" />
             <span>{toast}</span>
           </div>
-          <button onClick={() => setToast(null)} className="text-emerald-500 hover:text-emerald-800">
+          <button onClick={() => setToast(null)} aria-label="Dismiss toast" className="text-emerald-500 hover:text-emerald-800">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -296,6 +297,7 @@ export const OrgTeam: React.FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search team members by name, email, or role..."
+          aria-label="Search team members by name, email, or role"
           className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200/90 rounded-2xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 shadow-2xs font-normal"
         />
         {searchQuery && (
@@ -422,6 +424,7 @@ export const OrgTeam: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)}
+                      aria-label={`Options for ${member.name}`}
                       className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
                     >
                       <MoreVertical className="w-4 h-4" />

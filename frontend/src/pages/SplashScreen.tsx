@@ -13,7 +13,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
-import heroIllustration from '../assets/hero-illustration.jpg';
+import heroIllustration from '../assets/hero-illustration.webp';
 
 export const SplashScreen: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
@@ -148,7 +148,7 @@ export const SplashScreen: React.FC = () => {
                   <Clock className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">Automated 48h SLA Tracking</h4>
+                  <h2 className="text-xs font-bold text-slate-900">Automated 48h SLA Tracking</h2>
                   <p className="text-[11px] text-slate-500 leading-tight mt-0.5">Strict timers with multi-tier grievance escalation.</p>
                 </div>
               </div>
@@ -158,7 +158,7 @@ export const SplashScreen: React.FC = () => {
                   <Building2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">Direct Department Routing</h4>
+                  <h2 className="text-xs font-bold text-slate-900">Direct Department Routing</h2>
                   <p className="text-[11px] text-slate-500 leading-tight mt-0.5">Automated queue dispatch to verified authorities.</p>
                 </div>
               </div>
@@ -168,7 +168,7 @@ export const SplashScreen: React.FC = () => {
                   <HeartHandshake className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">Emergency Blood Hub</h4>
+                  <h2 className="text-xs font-bold text-slate-900">Emergency Blood Hub</h2>
                   <p className="text-[11px] text-slate-500 leading-tight mt-0.5">5-level geographic discovery with privacy relay.</p>
                 </div>
               </div>
@@ -178,7 +178,7 @@ export const SplashScreen: React.FC = () => {
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">Tamper-Evident Audit Trail</h4>
+                  <h2 className="text-xs font-bold text-slate-900">Tamper-Evident Audit Trail</h2>
                   <p className="text-[11px] text-slate-500 leading-tight mt-0.5">Cryptographic log of all status transitions.</p>
                 </div>
               </div>
@@ -226,6 +226,11 @@ export const SplashScreen: React.FC = () => {
                 <img
                   src={heroIllustration}
                   alt="Citizen connecting with city resolution platform"
+                  width={840}
+                  height={416}
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
                   className="w-full h-44 sm:h-52 object-cover object-center group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent flex items-end p-4">

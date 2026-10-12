@@ -544,6 +544,7 @@ export const CitizenCaseDetails: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/citizen/requests')}
+                aria-label="Back to My Requests"
                 className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -852,14 +853,15 @@ export const CitizenCaseDetails: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveView('DETAILS')}
+                aria-label="Back to case details"
                 className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
 
-              <h1 className="text-xl sm:text-2xl font-black text-[#1E293B] tracking-tight">
+              <h2 className="text-xl sm:text-2xl font-black text-[#1E293B] tracking-tight">
                 Case Conversation
-              </h1>
+              </h2>
             </div>
 
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">

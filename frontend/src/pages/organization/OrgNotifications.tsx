@@ -138,6 +138,7 @@ export const OrgNotifications: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/organization/dashboard')}
+            aria-label="Back to dashboard"
             className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />

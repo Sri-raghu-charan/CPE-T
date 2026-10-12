@@ -105,6 +105,7 @@ export const OrgShell: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              aria-label={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
               className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               title={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
             >
@@ -210,6 +211,7 @@ export const OrgShell: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsMobileDrawerOpen(false)}
+                  aria-label="Close mobile menu"
                   className="p-1.5 text-slate-400 hover:text-slate-700"
                 >
                   <X className="w-5 h-5" />
@@ -276,6 +278,7 @@ export const OrgShell: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsMobileDrawerOpen(true)}
+            aria-label="Open navigation menu"
             className="sm:hidden p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 shadow-2xs cursor-pointer"
             title="Open Menu"
           >
@@ -289,6 +292,7 @@ export const OrgShell: React.FC = () => {
               <input
                 type="text"
                 placeholder="Search requests..."
+                aria-label="Search requests"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-white/90 border border-slate-200/80 rounded-full text-xs sm:text-sm text-slate-800 placeholder-slate-400 shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all"
@@ -301,6 +305,7 @@ export const OrgShell: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/organization/notifications')}
+              aria-label="Notifications"
               className="p-2 rounded-full bg-white border border-slate-200/80 text-slate-500 hover:text-blue-600 hover:border-blue-200 shadow-2xs transition-colors cursor-pointer relative"
               title="Notifications"
             >
@@ -311,6 +316,7 @@ export const OrgShell: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/organization/profile')}
+              aria-label="User profile settings"
               className="w-9 h-9 rounded-full bg-[#1E3A8A] text-white flex items-center justify-center font-bold text-xs tracking-wider shadow-sm hover:ring-2 hover:ring-blue-400 transition-all cursor-pointer"
               title={`${userName} (${userRole})`}
             >

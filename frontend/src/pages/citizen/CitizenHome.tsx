@@ -184,6 +184,7 @@ export const CitizenHome: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowNotifications(!showNotifications)}
+            aria-label="Notifications and SMS Updates"
             className="w-10 h-10 rounded-full bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-700 hover:text-blue-600 transition-colors relative cursor-pointer shrink-0"
             title="Notifications & SMS Updates"
           >
@@ -212,6 +213,7 @@ export const CitizenHome: React.FC = () => {
                   )}
                   <button
                     onClick={() => setShowNotifications(false)}
+                    aria-label="Close notifications"
                     className="text-slate-400 hover:text-slate-600"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -278,7 +280,7 @@ export const CitizenHome: React.FC = () => {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <h3 className="font-extrabold text-sm text-white truncate">AI Voice Intake</h3>
+                <h2 className="font-extrabold text-sm text-white truncate">AI Voice Intake</h2>
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/25 text-white">AI</span>
               </div>
               <p className="text-[11px] text-blue-100 font-normal truncate mt-0.5">
@@ -353,9 +355,9 @@ export const CitizenHome: React.FC = () => {
                 Public + Organization Forms
               </span>
             </div>
-            <h3 className="text-base sm:text-lg font-black tracking-tight text-white mt-0.5">
+            <h2 className="text-base sm:text-lg font-black tracking-tight text-white mt-0.5">
               Browse & Submit Official Application & Grievance Forms
-            </h3>
+            </h2>
             <p className="text-xs text-blue-100 mt-0.5 max-w-xl">
               Discover verified forms from municipal utilities, consumer electronics (Lloyd, Samsung), public grid (Apex Power), and Banking Ombudsman.
             </p>
@@ -383,6 +385,7 @@ export const CitizenHome: React.FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search any sector, authority (UGC, RBI, TRAI, DISCOM), or brand (Samsung, SBI, Airtel)..."
+          aria-label="Search sectors, authorities, or brands"
           className="w-full pl-10 pr-4 py-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 shadow-2xs"
         />
         {searchQuery && (

@@ -107,6 +107,7 @@ export const AdminOrgDetails: React.FC = () => {
         <button
           type="button"
           onClick={() => navigate('/admin/organizations')}
+          aria-label="Back to organizations"
           className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -124,7 +125,7 @@ export const AdminOrgDetails: React.FC = () => {
             <Check className="w-4 h-4 text-emerald-600" />
             <span>Organization details updated successfully!</span>
           </div>
-          <button onClick={() => setSaveToast(false)} className="text-emerald-500 hover:text-emerald-800">
+          <button onClick={() => setSaveToast(false)} aria-label="Dismiss toast" className="text-emerald-500 hover:text-emerald-800">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -314,6 +315,7 @@ export const AdminOrgDetails: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}
+                aria-label="Close edit modal"
                 className="p-1 rounded-full text-slate-400 hover:text-slate-700"
               >
                 <X className="w-5 h-5" />

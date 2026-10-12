@@ -60,6 +60,7 @@ export const AdminSettings: React.FC = () => {
         <button
           type="button"
           onClick={() => navigate('/admin/dashboard')}
+          aria-label="Back to dashboard"
           className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -117,6 +118,7 @@ export const AdminSettings: React.FC = () => {
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
+                  aria-label="API Key or Auth Token"
                   className="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-900 focus:ring-2 focus:ring-blue-600 focus:outline-none"
                 />
                 <Key className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3" />

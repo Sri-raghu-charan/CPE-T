@@ -228,6 +228,7 @@ export const OrgRequestQueue: React.FC = () => {
           <input
             type="text"
             placeholder="Search requests, categories, or assigned officers..."
+            aria-label="Search requests, categories, or assigned officers"
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -241,6 +242,7 @@ export const OrgRequestQueue: React.FC = () => {
           type="button"
           className="p-2.5 bg-white border border-slate-200/80 rounded-2xl text-slate-500 hover:text-slate-800 hover:border-slate-300 transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5"
           title="Filter Options"
+          aria-label="Filter Options"
         >
           <Filter className="w-4 h-4" />
         </button>

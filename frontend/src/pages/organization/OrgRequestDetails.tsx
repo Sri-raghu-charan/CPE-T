@@ -546,6 +546,7 @@ export const OrgRequestDetails: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/organization/requests')}
+            aria-label="Back to request queue"
             className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -572,6 +573,7 @@ export const OrgRequestDetails: React.FC = () => {
           </div>
           <button
             onClick={() => setStatusUpdateMsg(null)}
+            aria-label="Dismiss alert"
             className="text-emerald-500 hover:text-emerald-700 text-xs font-bold cursor-pointer"
           >
             ✕
@@ -979,6 +981,7 @@ export const OrgRequestDetails: React.FC = () => {
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             placeholder={isInternal ? 'Write internal note (not visible to citizen)...' : 'Type public reply to citizen...'}
+            aria-label={isInternal ? 'Write internal note' : 'Type public reply to citizen'}
             className={`flex-1 px-4 py-3 border rounded-2xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 shadow-2xs ${
               isInternal
                 ? 'bg-amber-50/70 border-amber-300 focus:ring-amber-500'
@@ -988,6 +991,7 @@ export const OrgRequestDetails: React.FC = () => {
 
           <button
             type="submit"
+            aria-label="Send message"
             className="w-11 h-11 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white flex items-center justify-center shadow-md shadow-blue-500/30 active:scale-95 transition-all shrink-0 cursor-pointer"
           >
             <Send className="w-4 h-4" />

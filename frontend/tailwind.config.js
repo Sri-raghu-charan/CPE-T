@@ -12,6 +12,12 @@ export default {
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', '"Liberation Mono"', 'monospace'],
       },
       colors: {
+        slate: {
+          400: '#64748b', // Boosts text-slate-400 contrast on white/bg-slate-50 from 2.4:1 to 4.6:1 (WCAG AA)
+        },
+        gray: {
+          400: '#6b7280', // Boosts text-gray-400 contrast on white from 2.1:1 to 4.5:1 (WCAG AA)
+        },
         brand: {
           50: '#f0f7ff',
           100: '#e0effe',

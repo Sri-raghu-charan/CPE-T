@@ -810,6 +810,7 @@ export const CitizenBloodHub: React.FC = () => {
           <button
             type="button"
             onClick={() => setRequestSuccessBanner(null)}
+            aria-label="Dismiss notification"
             className="text-white/80 hover:text-white ml-auto"
           >
             <X className="w-4 h-4" />

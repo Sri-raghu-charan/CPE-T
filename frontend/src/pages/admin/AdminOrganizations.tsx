@@ -214,6 +214,7 @@ export const AdminOrganizations: React.FC = () => {
         <button
           type="button"
           onClick={() => navigate('/admin/dashboard')}
+          aria-label="Back to admin dashboard"
           className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -234,6 +235,7 @@ export const AdminOrganizations: React.FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search organizations..."
+          aria-label="Search organizations"
           className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200/90 rounded-2xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 shadow-2xs"
         />
         {searchQuery && (

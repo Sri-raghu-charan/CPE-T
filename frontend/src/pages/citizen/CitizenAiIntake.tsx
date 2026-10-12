@@ -789,6 +789,7 @@ export const CitizenAiIntake: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/citizen/home')}
+              aria-label="Back to home"
               className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -818,6 +819,7 @@ export const CitizenAiIntake: React.FC = () => {
                 setEditDescription(e.target.value);
               }}
               placeholder="e.g. Seniors in college hostel are ragging 1st year students, OR Amazon package delivered damaged, OR SBI ATM failed to dispense Rs 5000..."
+              aria-label="Describe your problem or request in detail"
               className="w-full bg-transparent text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none resize-none leading-relaxed font-medium"
             />
           </div>
@@ -1121,6 +1123,7 @@ export const CitizenAiIntake: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveStep('DESCRIBE')}
+              aria-label="Back to describe step"
               className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -1329,6 +1332,7 @@ export const CitizenAiIntake: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveStep('AI_UNDERSTAND')}
+              aria-label="Back to AI understand step"
               className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />

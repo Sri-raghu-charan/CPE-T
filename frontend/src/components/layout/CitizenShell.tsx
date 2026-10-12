@@ -278,6 +278,7 @@ export const CitizenShell: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/citizen/requests')}
+              aria-label="Notifications"
               className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors relative cursor-pointer"
               title="Notifications"
             >
@@ -347,6 +348,7 @@ export const CitizenShell: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/citizen/intake')}
+              aria-label="File new case with AI intake"
               className="w-12 h-12 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-lg shadow-blue-500/30 flex items-center justify-center -mt-6 hover:scale-105 transition-transform cursor-pointer border-4 border-white"
               title="Tell CPET your problem"
             >
